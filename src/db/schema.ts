@@ -1,4 +1,4 @@
-import { boolean, check, index, integer, pgEnum, pgTable, text, time, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, pgEnum, pgTable, text, time, timestamp } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const user = pgTable("user", {
@@ -112,6 +112,54 @@ export const task = pgTable(
   ]
 );
 
+export const scheduleItemStatusEnum = pgEnum("schedule_item_status", [
+  "SCHEDULED",
+  "COMPLETED",
+  "SKIPPED",
+]);
+
+export const dailyPlan = pgTable(
+  "daily_plan",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("daily_plan_user_id_idx").on(table.userId),
+    index("daily_plan_user_date_idx").on(table.userId, table.date),
+  ]
+);
+
+export const scheduleItem = pgTable(
+  "schedule_item",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    dailyPlanId: text("daily_plan_id")
+      .notNull()
+      .references(() => dailyPlan.id, { onDelete: "cascade" }),
+    taskId: text("task_id").references(() => task.id, { onDelete: "set null" }),
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+    status: scheduleItemStatusEnum("status").notNull().default("SCHEDULED"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("schedule_item_plan_idx").on(table.dailyPlanId),
+    index("schedule_item_task_idx").on(table.taskId),
+    check("schedule_item_start_before_end", sql`${table.startTime} < ${table.endTime}`),
+  ]
+);
+
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
@@ -124,5 +172,11 @@ export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 export type Availability = typeof availability.$inferSelect;
 export type NewAvailability = typeof availability.$inferInsert;
 export type DayOfWeek = (typeof dayOfWeekEnum.enumValues)[number];
+
+export type DailyPlan = typeof dailyPlan.$inferSelect;
+export type NewDailyPlan = typeof dailyPlan.$inferInsert;
+export type ScheduleItem = typeof scheduleItem.$inferSelect;
+export type NewScheduleItem = typeof scheduleItem.$inferInsert;
+export type ScheduleItemStatus = (typeof scheduleItemStatusEnum.enumValues)[number];
 
 

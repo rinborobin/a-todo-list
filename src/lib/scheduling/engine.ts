@@ -34,7 +34,7 @@ export function scheduleTasks(input: ScheduleInput): ScheduleOutput {
     now,
   } = input;
 
-  const sortedTasks = sortTasks(tasks);
+  const sortedTasks = sortTasks(tasks, input.taskOrder);
   const freeWindowsByDay = buildFreeWindowsByDay({
     availability,
     existingItems,
@@ -69,7 +69,7 @@ export function scheduleTasks(input: ScheduleInput): ScheduleOutput {
   return { scheduled, unscheduled };
 }
 
-function sortTasks(tasks: Task[]): SortableTask[] {
+function sortTasks(tasks: Task[], taskOrder?: string[]): SortableTask[] {
   const priorityScores: Record<Task["priority"], number> = {
     URGENT: 4,
     HIGH: 3,
@@ -77,12 +77,22 @@ function sortTasks(tasks: Task[]): SortableTask[] {
     LOW: 1,
   };
 
+  const orderIndex = taskOrder
+    ? new Map(taskOrder.map((id, index) => [id, index]))
+    : null;
+
   const withScore = tasks.map((task) => ({
     task,
     priorityScore: priorityScores[task.priority],
+    order: orderIndex?.get(task.id) ?? Number.POSITIVE_INFINITY,
   }));
 
   withScore.sort((a, b) => {
+    // Honor explicit AI-provided order when present.
+    if (orderIndex) {
+      return a.order - b.order;
+    }
+
     if (b.priorityScore !== a.priorityScore) {
       return b.priorityScore - a.priorityScore;
     }

@@ -24,6 +24,7 @@ export interface ScheduleInput {
   startDate: string;
   endDate: string;
   now: Date;
+  taskOrder?: string[];
 }
 
 export interface ScheduleOutput {

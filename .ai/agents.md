@@ -377,3 +377,168 @@ A feature should be considered complete only when:
 - Database migrations are correct when applicable.
 - No secrets are exposed.
 - The application remains deployable.
+
+## Output and UI Style Rules
+
+Do not use emojis anywhere in the project unless explicitly requested by the user.
+
+This includes:
+
+- UI text
+- Buttons
+- Labels
+- Headings
+- Toasts
+- Notifications
+- Error messages
+- Empty states
+- README files
+- Documentation
+- Code comments
+- Commit messages
+- Generated status summaries
+
+Do not replace normal UI icons with emoji characters.
+
+For interface icons, use the project's existing icon library/components instead of Unicode emoji.
+
+Examples of prohibited characters:
+
+- 🎉
+- ✅
+- ❌
+- 🚀
+- 🔥
+- ⚡
+- 📋
+- 🗑️
+- 👤
+
+Use professional text and proper UI icons instead.
+
+Do not introduce a new icon library if the project already has one.
+
+## Design Quality Rules
+
+The application must NOT have a generic "AI-generated SaaS dashboard" aesthetic.
+
+Avoid:
+
+- Excessive rounded cards
+- Excessive use of pills and badges
+- Large gradient backgrounds
+- Purple/blue AI-style gradients
+- Decorative blobs or abstract background shapes
+- Excessive shadows
+- Excessive glassmorphism
+- Every section being placed inside a card
+- Huge dashboard headings
+- Generic "Welcome back" dashboard copy
+- Excessive empty whitespace without purpose
+- Emoji used as icons
+- Random decorative icons
+- Repetitive card grids
+- Excessive use of borders
+- Making every button visually prominent
+- Generic AI-product visual patterns
+- Copy that sounds obviously AI-generated
+
+The design should feel like a deliberately designed software product rather than a generated template.
+
+### Visual Design Principles
+
+Prioritize:
+
+- Strong visual hierarchy
+- Consistent spacing
+- Clear typography
+- Intentional alignment
+- Restrained use of color
+- Functional information density
+- Clear primary and secondary actions
+- Good contrast
+- Consistent component proportions
+- Natural interaction patterns
+- Responsive behavior
+- Accessibility
+
+Use visual elements only when they communicate information or improve usability.
+
+Not every piece of information needs to be inside a card.
+
+### Color
+
+Use a restrained color palette.
+
+Do not introduce gradients unless explicitly requested.
+
+Use color primarily to communicate:
+
+- Primary actions
+- Status
+- Priority
+- Errors
+- Success
+- Important information
+
+Do not use color purely for decoration.
+
+### Components
+
+Use the existing design system consistently.
+
+Before creating a new visual pattern, check whether an existing component can be reused.
+
+Do not create multiple visually different versions of the same component.
+
+Avoid unnecessary cards, containers, badges, and decorative elements.
+
+### Icons
+
+Use the existing icon library for interface icons.
+
+Never use emoji as UI icons.
+
+Icons should have a clear semantic purpose and should not be added merely to make an interface look more visually interesting.
+
+### Typography
+
+Typography should establish hierarchy naturally.
+
+Avoid:
+
+- Excessively large headings
+- Excessive font-weight changes
+- All-caps text unless appropriate
+- Decorative typography
+
+### Content
+
+UI copy should be concise, natural, and specific to the application.
+
+Avoid generic AI-generated phrases such as:
+
+- "Welcome back!"
+- "Let's get things done!"
+- "Your productivity journey starts here."
+- "Take control of your day."
+- "Unlock your productivity potential."
+
+Prefer functional, direct language.
+
+### Design Review
+
+Before considering a UI feature complete, review it for:
+
+1. Visual hierarchy
+2. Spacing consistency
+3. Typography
+4. Color usage
+5. Component consistency
+6. Information density
+7. Mobile layout
+8. Accessibility
+9. Interaction clarity
+10. Whether the result looks like a generic AI-generated template
+
+If the interface looks like a generic SaaS/AI template, revise it before considering the feature complete.

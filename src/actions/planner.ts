@@ -14,6 +14,8 @@ import {
 } from "@/lib/validations/planner";
 import { scheduleTasks } from "@/lib/scheduling/engine";
 import type { ScheduleOutput, TimeWindow } from "@/lib/scheduling/types";
+import { suggestAiPlanOrdering } from "@/lib/ai/suggest";
+import type { AiPlanResult } from "@/lib/ai/schemas";
 
 export type ActionResult<T = unknown> =
   | { success: true; data: T }
@@ -26,9 +28,31 @@ export interface PlanWithItems {
   })[];
 }
 
+export interface GeneratePlanResult extends ScheduleOutput {
+  aiGenerated: boolean;
+  aiNotes: string | null;
+}
+
 export async function generatePlanAction(
   input: GeneratePlanInput
-): Promise<ActionResult<ScheduleOutput>> {
+): Promise<ActionResult<GeneratePlanResult>> {
+  return generatePlanInternal(input, { ai: false });
+}
+
+export async function generatePlanWithAIAction(
+  input: GeneratePlanInput
+): Promise<ActionResult<GeneratePlanResult>> {
+  return generatePlanInternal(input, { ai: true });
+}
+
+interface GeneratePlanOptions {
+  ai: boolean;
+}
+
+async function generatePlanInternal(
+  input: GeneratePlanInput,
+  options: GeneratePlanOptions
+): Promise<ActionResult<GeneratePlanResult>> {
   try {
     const session = await requireAuth();
     const userId = session.user.id;
@@ -54,12 +78,17 @@ export async function generatePlanAction(
     ]);
 
     const planIds = existingPlansWithItems.map((plan) => plan.id);
-    const existingItems: TimeWindow[] =
+    const existingItemsWithTask: Array<{
+      taskId: string | null;
+      startTime: Date;
+      endTime: Date;
+    }> =
       planIds.length > 0
         ? await db
             .select({
-              start: scheduleItem.startTime,
-              end: scheduleItem.endTime,
+              taskId: scheduleItem.taskId,
+              startTime: scheduleItem.startTime,
+              endTime: scheduleItem.endTime,
             })
             .from(scheduleItem)
             .where(
@@ -70,6 +99,11 @@ export async function generatePlanAction(
             )
         : [];
 
+    const existingItems: TimeWindow[] = existingItemsWithTask.map((item) => ({
+      start: item.startTime,
+      end: item.endTime,
+    }));
+
     const userRecord = await db.query.user.findFirst({
       where: eq(user.id, userId),
       columns: { timezone: true },
@@ -78,7 +112,7 @@ export async function generatePlanAction(
     const timezone = userRecord?.timezone ?? "UTC";
     const now = new Date();
 
-    const scheduleResult = scheduleTasks({
+    const baseScheduleResult = scheduleTasks({
       tasks: eligibleTasks,
       availability: availabilityBlocks,
       existingItems,
@@ -88,9 +122,47 @@ export async function generatePlanAction(
       now,
     });
 
+    let aiResult: AiPlanResult | null = null;
+
+    if (options.ai && eligibleTasks.length > 0) {
+      aiResult = await suggestAiPlanOrdering({
+        tasks: eligibleTasks,
+        availability: availabilityBlocks,
+        existingItems: existingItemsWithTask,
+        deterministicSchedule: baseScheduleResult.scheduled,
+        unscheduledTasks: baseScheduleResult.unscheduled.map((u) => ({
+          taskId: u.task.id,
+          reason: u.reason,
+        })),
+        timezone,
+        startDate: validated.startDate,
+        endDate: validated.endDate,
+        now,
+      });
+    }
+
+    const finalScheduleResult =
+      aiResult?.suggestedOrder
+        ? scheduleTasks({
+            tasks: eligibleTasks,
+            availability: availabilityBlocks,
+            existingItems,
+            timezone,
+            startDate: validated.startDate,
+            endDate: validated.endDate,
+            now,
+            taskOrder: aiResult.suggestedOrder,
+          })
+        : baseScheduleResult;
+
+    const aiGenerated = aiResult !== null;
+    const aiNotes = aiResult
+      ? formatAiNotes(aiResult.notes, aiResult.warnings)
+      : null;
+
     // Group scheduled items by date key so we can create one DailyPlan per date.
-    const itemsByDate = new Map<string, typeof scheduleResult.scheduled>();
-    for (const item of scheduleResult.scheduled) {
+    const itemsByDate = new Map<string, typeof finalScheduleResult.scheduled>();
+    for (const item of finalScheduleResult.scheduled) {
       const dateKey = toDateKey(item.startTime);
       const group = itemsByDate.get(dateKey) ?? [];
       group.push(item);
@@ -113,6 +185,8 @@ export async function generatePlanAction(
           .values({
             userId,
             date: dateKey,
+            aiGenerated,
+            aiNotes,
           })
           .returning();
 
@@ -134,9 +208,22 @@ export async function generatePlanAction(
     });
 
     revalidatePath("/planner");
-    return { success: true, data: scheduleResult };
+    return {
+      success: true,
+      data: {
+        ...finalScheduleResult,
+        aiGenerated,
+        aiNotes,
+      },
+    };
   } catch (error) {
-    return { success: false, error: safeErrorMessage(error, "Failed to generate plan") };
+    return {
+      success: false,
+      error: safeErrorMessage(
+        error,
+        options.ai ? "Failed to generate AI plan" : "Failed to generate plan"
+      ),
+    };
   }
 }
 
@@ -250,4 +337,15 @@ function toDateKey(date: Date): string {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatAiNotes(notes: string[], warnings: string[]): string | null {
+  const parts: string[] = [];
+  if (notes.length > 0) {
+    parts.push(notes.join(" "));
+  }
+  if (warnings.length > 0) {
+    parts.push(`Warnings: ${warnings.join(" ")}`);
+  }
+  return parts.length > 0 ? parts.join(" ") : null;
 }

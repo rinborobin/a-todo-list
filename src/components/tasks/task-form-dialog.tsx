@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Task, TaskPriority, TaskStatus } from "@/db/schema";
+import { CloseIcon } from "@/components/ui/icons";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validations/task";
 
 interface TaskFormDialogProps {
@@ -119,7 +120,7 @@ export function TaskFormDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-dialog-title"
-        className="w-full max-w-lg rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xl my-8"
+        className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900 my-8"
       >
         <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 id="task-dialog-title" className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
@@ -128,9 +129,10 @@ export function TaskFormDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-sm cursor-pointer"
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
           >
-            ✕
+            <CloseIcon className="h-5 w-5" />
           </button>
         </div>
 
@@ -159,7 +161,7 @@ export function TaskFormDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Finish quarterly project proposal"
-              className="mt-1 block w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
             {fieldErrors.title && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.title[0]}</p>
@@ -180,7 +182,7 @@ export function TaskFormDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add key context, links, or notes..."
-              className="mt-1 block w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 resize-y"
+              className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 resize-y"
             />
             {fieldErrors.description && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">
@@ -202,10 +204,10 @@ export function TaskFormDialog({
                     key={p.value}
                     type="button"
                     onClick={() => setPriority(p.value)}
-                    className={`rounded-xl border py-2 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+                    className={`rounded-lg border py-2 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                       isSelected
                         ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 shadow-sm"
-                        : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-750"
+                        : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/70"
                     }`}
                   >
                     {p.label}
@@ -233,7 +235,7 @@ export function TaskFormDialog({
                 id="task-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="mt-1 block w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 cursor-pointer"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 cursor-pointer"
               >
                 {statuses.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -262,7 +264,7 @@ export function TaskFormDialog({
                 value={estimatedMinutes}
                 onChange={(e) => setEstimatedMinutes(e.target.value)}
                 placeholder="e.g. 45"
-                className="mt-1 block w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
               />
               <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
                 Max 1440 mins (24 hrs)
@@ -287,7 +289,7 @@ export function TaskFormDialog({
                 type="datetime-local"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="mt-1 block w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
               />
               {fieldErrors.deadline && (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">
@@ -303,14 +305,14 @@ export function TaskFormDialog({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer"
+              className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-xl bg-zinc-900 dark:bg-zinc-100 px-5 py-2 text-sm font-semibold text-white dark:text-zinc-900 shadow-sm hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-60 cursor-pointer"
+              className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors disabled:opacity-60"
             >
               {isSubmitting
                 ? isEditing

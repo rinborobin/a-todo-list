@@ -8,6 +8,7 @@ import { requireAuth, assertUserOwnership } from "@/lib/session";
 import {
   createTaskSchema,
   updateTaskSchema,
+  taskFilterSchema,
   type CreateTaskInput,
   type UpdateTaskInput,
   type TaskStatus,
@@ -17,6 +18,18 @@ import {
 export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
+
+function safeErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) {
+    // Never leak raw driver/database errors to the client.
+    const message = err.message.toLowerCase();
+    if (message.includes("connection") || message.includes("timeout") || message.includes("database")) {
+      return fallback;
+    }
+    return err.message;
+  }
+  return fallback;
+}
 
 /**
  * Creates a new task for the authenticated user.
@@ -55,7 +68,7 @@ export async function createTaskAction(input: CreateTaskInput): Promise<ActionRe
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to create task",
+      error: safeErrorMessage(err, "Failed to create task"),
     };
   }
 }
@@ -106,7 +119,7 @@ export async function updateTaskAction(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to update task",
+      error: safeErrorMessage(err, "Failed to update task"),
     };
   }
 }
@@ -137,7 +150,7 @@ export async function deleteTaskAction(id: string): Promise<ActionResult<{ id: s
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to delete task",
+      error: safeErrorMessage(err, "Failed to delete task"),
     };
   }
 }
@@ -152,6 +165,11 @@ export async function toggleTaskStatusAction(
   try {
     const session = await requireAuth();
 
+    const statusResult = updateTaskSchema.shape.status.safeParse(newStatus);
+    if (!statusResult.success) {
+      return { success: false, error: "Invalid task status" };
+    }
+
     const existingTask = await db.query.task.findFirst({
       where: and(eq(task.id, id), eq(task.userId, session.user.id)),
     });
@@ -165,7 +183,7 @@ export async function toggleTaskStatusAction(
     const [updatedTask] = await db
       .update(task)
       .set({
-        status: newStatus,
+        status: statusResult.data,
         updatedAt: new Date(),
       })
       .where(and(eq(task.id, id), eq(task.userId, session.user.id)))
@@ -178,7 +196,31 @@ export async function toggleTaskStatusAction(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to update task status",
+      error: safeErrorMessage(err, "Failed to update task status"),
+    };
+  }
+}
+
+/**
+ * Fetches a single task by ID if it belongs to the current user.
+ */
+export async function getTaskByIdAction(id: string): Promise<ActionResult<Task>> {
+  try {
+    const session = await requireAuth();
+
+    const existingTask = await db.query.task.findFirst({
+      where: and(eq(task.id, id), eq(task.userId, session.user.id)),
+    });
+
+    if (!existingTask) {
+      return { success: false, error: "Task not found or access denied" };
+    }
+
+    return { success: true, data: existingTask };
+  } catch (err) {
+    return {
+      success: false,
+      error: safeErrorMessage(err, "Failed to load task"),
     };
   }
 }
@@ -194,27 +236,37 @@ export async function getUserTasksQuery(options?: {
   sortOrder?: "asc" | "desc";
 }): Promise<Task[]> {
   const session = await requireAuth();
+  const filters = taskFilterSchema.safeParse(options ?? {});
+
+  const {
+    status: filterStatus,
+    priority: filterPriority,
+    search: filterSearch,
+    sortBy,
+    sortOrder,
+  } = filters.success ? filters.data : taskFilterSchema.parse({});
+
   const conditions = [eq(task.userId, session.user.id)];
 
-  if (options?.status && options.status !== "ALL") {
-    conditions.push(eq(task.status, options.status as TaskStatus));
+  if (filterStatus && filterStatus !== "ALL") {
+    conditions.push(eq(task.status, filterStatus as TaskStatus));
   }
 
-  if (options?.priority && options.priority !== "ALL") {
-    conditions.push(eq(task.priority, options.priority as TaskPriority));
+  if (filterPriority && filterPriority !== "ALL") {
+    conditions.push(eq(task.priority, filterPriority as TaskPriority));
   }
 
-  if (options?.search && options.search.trim()) {
-    const pattern = `%${options.search.trim()}%`;
+  if (filterSearch && filterSearch.trim()) {
+    const pattern = `%${filterSearch.trim()}%`;
     conditions.push(or(ilike(task.title, pattern), ilike(task.description, pattern))!);
   }
 
   let order = desc(task.createdAt);
-  const isAsc = options?.sortOrder === "asc";
+  const isAsc = sortOrder === "asc";
 
-  if (options?.sortBy === "deadline") {
+  if (sortBy === "deadline") {
     order = isAsc ? asc(task.deadline) : desc(task.deadline);
-  } else if (options?.sortBy === "createdAt") {
+  } else if (sortBy === "createdAt") {
     order = isAsc ? asc(task.createdAt) : desc(task.createdAt);
   }
 
@@ -244,6 +296,11 @@ export async function getUserTaskStatsQuery(): Promise<{
     todo: tasks.filter((t) => t.status === "TODO").length,
     inProgress: tasks.filter((t) => t.status === "IN_PROGRESS").length,
     completed: tasks.filter((t) => t.status === "COMPLETED").length,
-    urgent: tasks.filter((t) => (t.priority === "URGENT" || t.priority === "HIGH") && t.status !== "COMPLETED" && t.status !== "CANCELLED").length,
+    urgent: tasks.filter(
+      (t) =>
+        (t.priority === "URGENT" || t.priority === "HIGH") &&
+        t.status !== "COMPLETED" &&
+        t.status !== "CANCELLED"
+    ).length,
   };
 }

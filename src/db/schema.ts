@@ -128,6 +128,8 @@ export const dailyPlan = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     date: date("date").notNull(),
+    aiGenerated: boolean("ai_generated").notNull().default(false),
+    aiNotes: text("ai_notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

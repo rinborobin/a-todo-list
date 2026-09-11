@@ -1,4 +1,5 @@
-import { boolean, index, integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgEnum, pgTable, text, time, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -6,6 +7,7 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  timezone: text("timezone").notNull().default("UTC"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -53,6 +55,38 @@ export const verification = pgTable("verification", {
 export const taskPriorityEnum = pgEnum("task_priority", ["LOW", "MEDIUM", "HIGH", "URGENT"]);
 export const taskStatusEnum = pgEnum("task_status", ["TODO", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
 
+export const dayOfWeekEnum = pgEnum("day_of_week", [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+]);
+
+export const availability = pgTable(
+  "availability",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dayOfWeek: dayOfWeekEnum("day_of_week").notNull(),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("availability_user_id_idx").on(table.userId),
+    index("availability_user_day_idx").on(table.userId, table.dayOfWeek),
+    check("availability_start_before_end", sql`${table.startTime} < ${table.endTime}`),
+  ]
+);
+
 export const task = pgTable(
   "task",
   {
@@ -86,5 +120,9 @@ export type Task = typeof task.$inferSelect;
 export type NewTask = typeof task.$inferInsert;
 export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
+
+export type Availability = typeof availability.$inferSelect;
+export type NewAvailability = typeof availability.$inferInsert;
+export type DayOfWeek = (typeof dayOfWeekEnum.enumValues)[number];
 
 

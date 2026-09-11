@@ -15,6 +15,13 @@
       "when": 1788964239313,
       "tag": "0001_tan_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789012326481,
+      "tag": "0002_known_nitro",
+      "breakpoints": true
     }
   ]
 }

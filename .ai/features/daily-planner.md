@@ -20,6 +20,36 @@ The planner should consider:
 
 ## Planning Flow
 
+### Task Proposal Flow
+
+Users may describe goals in natural language and ask the AI to propose tasks before scheduling:
+
+```text
+User describes planning request
+        ↓
+Authenticate user
+        ↓
+Retrieve user's planning context
+        ↓
+Build proposal prompt
+        ↓
+LLM proposes existing + new tasks
+        ↓
+Validate proposal against user's data
+        ↓
+Present proposal for review/edit/remove
+        ↓
+User confirms
+        ↓
+Server validates again and creates new Task records
+        ↓
+Deterministic scheduler generates DailyPlan
+        ↓
+Display schedule
+```
+
+### Schedule Generation Flow
+
 ```text
 User requests a plan
         ↓
@@ -31,7 +61,7 @@ Validate input
         ↓
 Planner Agent
         ↓
-LLM
+LLM (optional ordering suggestion)
         ↓
 Structured schedule proposal
         ↓
@@ -54,6 +84,14 @@ The application must reject schedules that:
 - Reference another user's tasks.
 - Use invalid time ranges.
 - Schedule tasks that cannot be scheduled.
+
+Proposals must also be validated before they are shown to the user:
+
+- Existing task IDs must belong to the current user.
+- Existing task IDs must not be duplicated.
+- New tasks must pass the same validation as manually created tasks.
+- New tasks must not be created until the user explicitly confirms.
+- Proposals must not invent tasks or deadlines beyond what the user requested.
 
 ## AI Responsibility
 

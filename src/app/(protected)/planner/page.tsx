@@ -3,8 +3,7 @@ import { db } from "@/db";
 import { user } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getPlansForRangeQuery } from "@/actions/planner";
-import { PlannerControls } from "@/components/planner/planner-controls";
-import { PlanView } from "@/components/planner/plan-view";
+import { PlannerClient } from "@/components/planner/planner-client";
 
 export const metadata = {
   title: "Planner",
@@ -45,12 +44,8 @@ export default async function PlannerPage() {
         </p>
       </div>
 
-      <div className="mb-8">
-        <PlannerControls />
-      </div>
-
       {plansResult.success ? (
-        <PlanView plans={plansResult.data} timezone={timezone} />
+        <PlannerClient plans={plansResult.data} timezone={timezone} />
       ) : (
         <p className="text-sm text-red-600 dark:text-red-400">
           {plansResult.error}

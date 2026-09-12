@@ -50,6 +50,8 @@ The main architectural goals are:
 
 - Vercel AI SDK
 - LLM provider
+- Structured output schemas and validators
+- Task proposal layer (temporary, user-confirmed)
 
 ## Deployment
 

@@ -76,6 +76,18 @@ The planner should consider:
 
 Completed and cancelled tasks should normally be excluded from planning.
 
+## AI-Proposed Tasks
+
+The planner can propose new tasks based on a natural-language request.
+
+Rules:
+
+- Proposed tasks are temporary until the user confirms them.
+- Confirmation creates real Task records subject to the same validation as manual creation.
+- Existing task references in a proposal must be verified against the user's own tasks.
+- Users can edit, remove, or cancel proposed tasks before confirming.
+- AI-proposed tasks are scheduled by the deterministic scheduler, not written directly by the AI.
+
 ## Acceptance Criteria
 
 - CRUD operations work.
@@ -83,3 +95,4 @@ Completed and cancelled tasks should normally be excluded from planning.
 - Users cannot access other users' tasks.
 - Completed tasks are represented correctly.
 - Task changes are reflected in future planning.
+- AI-proposed tasks can be reviewed and confirmed before creation.

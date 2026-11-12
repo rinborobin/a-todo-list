@@ -23,11 +23,11 @@ export async function ownSubjectId(userId: string, subjectId: string | null | un
 export async function ownTask(
   userId: string,
   taskId: string | null | undefined
-): Promise<{ id: string; subjectId: string | null } | null> {
+): Promise<{ id: string; subjectId: string | null; estimatedMinutes: number | null } | null> {
   if (!taskId) return null;
   const found = await db.query.task.findFirst({
     where: and(eq(task.id, taskId), eq(task.userId, userId)),
-    columns: { id: true, subjectId: true },
+    columns: { id: true, subjectId: true, estimatedMinutes: true },
   });
   if (!found) throw new UserFacingError("Task not found");
   return found;

@@ -13,8 +13,10 @@ import {
   logStudySessionSchema,
   rateSessionSchema,
   renameSubjectSchema,
+  setGoalSchema,
   startTimerSchema,
 } from "@/lib/validations/study";
+import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
 import { summarizeStudy } from "@/lib/study/stats";
 import { suggestStudyNextWithAi } from "@/lib/ai/study-next";
@@ -35,6 +37,7 @@ function revalidateStudyViews() {
   revalidatePath("/progress");
   revalidatePath("/tasks");
   revalidatePath("/me");
+  revalidatePath("/focus");
 }
 
 async function userTimezone(userId: string): Promise<string> {
@@ -128,6 +131,7 @@ export async function startStudyTimerAction(input: unknown): Promise<ActionResul
         startedAt: new Date(),
         endedAt: null,
         minutes: 0,
+        plannedMinutes: parsed.data.plannedMinutes ?? defaultGoalMinutes(ownedTask?.estimatedMinutes),
         source: "TIMER",
       })
       .returning();
@@ -137,6 +141,67 @@ export async function startStudyTimerAction(input: unknown): Promise<ActionResul
     if (isUniqueViolation(err)) return { success: false, error: "A timer is already running. Stop it first." };
     return { success: false, error: safeErrorMessage(err, "Could not start the timer") };
   }
+}
+
+/** Changes the goal of the running timer (from the focus screen). */
+export async function setStudyGoalAction(input: unknown): Promise<ActionResult<{ plannedMinutes: number }>> {
+  try {
+    const session = await requireAuth();
+    const parsed = setGoalSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid goal" };
+
+    const [updated] = await db
+      .update(studySession)
+      .set({ plannedMinutes: parsed.data.minutes })
+      .where(and(eq(studySession.userId, session.user.id), isNull(studySession.endedAt)))
+      .returning({ plannedMinutes: studySession.plannedMinutes });
+    if (!updated) return { success: false, error: "No timer is running" };
+    revalidateStudyViews();
+    return { success: true, data: { plannedMinutes: updated.plannedMinutes ?? parsed.data.minutes } };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not change the goal") };
+  }
+}
+
+export interface FocusData {
+  sessionId: string;
+  startedAt: Date;
+  plannedMinutes: number;
+  subjectName: string | null;
+  taskTitle: string | null;
+}
+
+/** The running timer with the names the focus screen shows, or null. */
+export async function getFocusQuery(): Promise<FocusData | null> {
+  const session = await requireAuth();
+  const userId = session.user.id;
+  const running = await db.query.studySession.findFirst({
+    where: and(eq(studySession.userId, userId), isNull(studySession.endedAt)),
+  });
+  if (!running) return null;
+
+  const [subjectRow, taskRow] = await Promise.all([
+    running.subjectId
+      ? db.query.subject.findFirst({
+          where: and(eq(subject.id, running.subjectId), eq(subject.userId, userId)),
+          columns: { name: true },
+        })
+      : null,
+    running.taskId
+      ? db.query.task.findFirst({
+          where: and(eq(task.id, running.taskId), eq(task.userId, userId)),
+          columns: { title: true },
+        })
+      : null,
+  ]);
+
+  return {
+    sessionId: running.id,
+    startedAt: running.startedAt,
+    plannedMinutes: running.plannedMinutes ?? defaultGoalMinutes(null),
+    subjectName: subjectRow?.name ?? null,
+    taskTitle: taskRow?.title ?? null,
+  };
 }
 
 export interface StopTimerResult {

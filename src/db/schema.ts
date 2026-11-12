@@ -225,6 +225,8 @@ export const studySession = pgTable(
     // Null while a timer is running.
     endedAt: timestamp("ended_at", { withTimezone: true }),
     minutes: integer("minutes").notNull().default(0),
+    // Goal length for a timer session; drives the "time left" on the focus screen.
+    plannedMinutes: integer("planned_minutes"),
     source: studySourceEnum("source").notNull(),
     rating: studyRatingEnum("rating"),
     note: text("note"),
@@ -236,6 +238,10 @@ export const studySession = pgTable(
     // At most one running timer per user.
     uniqueIndex("study_session_running_idx").on(table.userId).where(sql`${table.endedAt} is null`),
     check("study_session_minutes_range", sql`${table.minutes} >= 0 and ${table.minutes} <= 1440`),
+    check(
+      "study_session_planned_range",
+      sql`${table.plannedMinutes} is null or (${table.plannedMinutes} >= 5 and ${table.plannedMinutes} <= 480)`
+    ),
   ]
 );
 

@@ -14,10 +14,15 @@ export type StudyRatingValue = z.infer<typeof StudyRating>;
 
 const optionalId = z.string().min(1).nullable().optional();
 
+const goalMinutes = z.number().int().min(5, "At least 5 minutes").max(480, "At most 8 hours");
+
 export const startTimerSchema = z.object({
   subjectId: optionalId,
   taskId: optionalId,
+  plannedMinutes: goalMinutes.optional(),
 });
+
+export const setGoalSchema = z.object({ minutes: goalMinutes });
 
 export const logStudySessionSchema = z.object({
   subjectId: optionalId,

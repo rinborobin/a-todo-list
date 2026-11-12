@@ -1,0 +1,2 @@
+ALTER TABLE "study_session" ADD COLUMN "planned_minutes" integer;--> statement-breakpoint
+ALTER TABLE "study_session" ADD CONSTRAINT "study_session_planned_range" CHECK ("study_session"."planned_minutes" is null or ("study_session"."planned_minutes" >= 5 and "study_session"."planned_minutes" <= 480));

@@ -10,6 +10,7 @@ function makeTask(id: string, estimatedMinutes = 60): Task {
   return {
     id,
     userId: "user-1",
+    subjectId: null,
     title: id,
     description: null,
     priority: "MEDIUM",

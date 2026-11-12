@@ -119,6 +119,17 @@ describe("buildBusyWindows", () => {
     );
   });
 
+  it("keeps scheduled items of tasks that are not being replanned as busy", () => {
+    const windows = buildBusyWindows(
+      [
+        { status: "SCHEDULED", taskId: "replanned", startTime: new Date("2026-09-14T09:00:00Z"), endTime: new Date("2026-09-14T10:00:00Z") },
+        { status: "SCHEDULED", taskId: "untouched", startTime: new Date("2026-09-14T11:00:00Z"), endTime: new Date("2026-09-14T12:00:00Z") },
+      ],
+      new Set(["replanned"])
+    );
+    assert.deepEqual(windows.map((w) => w.start.toISOString()), ["2026-09-14T11:00:00.000Z"]);
+  });
+
   it("keeps completed items blocking their time on regeneration", () => {
     const input = {
       tasks: [makeTask("c")],

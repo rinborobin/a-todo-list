@@ -4,6 +4,7 @@ import type { ScheduledItem, TimeWindow } from "./types";
 
 export interface ExistingScheduleItem {
   status: ScheduleItemStatus;
+  taskId?: string | null;
   startTime: Date;
   endTime: Date;
 }
@@ -32,9 +33,15 @@ export function groupScheduledItemsByLocalDate(
  * Regeneration replaces items that are still SCHEDULED, so they must not block
  * their own slots. Items the user already marked COMPLETED or SKIPPED are kept
  * and continue to occupy their time.
+ *
+ * When only some tasks are being replanned (`replanTaskIds`), scheduled items
+ * of every other task stay where they are and also count as busy.
  */
-export function buildBusyWindows(items: ExistingScheduleItem[]): TimeWindow[] {
+export function buildBusyWindows(items: ExistingScheduleItem[], replanTaskIds?: Set<string>): TimeWindow[] {
   return items
-    .filter((item) => item.status !== "SCHEDULED")
+    .filter(
+      (item) =>
+        item.status !== "SCHEDULED" || (replanTaskIds !== undefined && !replanTaskIds.has(item.taskId ?? ""))
+    )
     .map((item) => ({ start: item.startTime, end: item.endTime }));
 }

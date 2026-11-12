@@ -137,6 +137,8 @@ interface BuildScheduleDataOptions {
   startDate: string;
   endDate: string;
   taskOrder?: string[];
+  /** Plan only these tasks; every other task keeps its existing slots. */
+  onlyTaskIds?: string[];
 }
 
 interface BuildScheduleDataOutput {
@@ -152,6 +154,7 @@ interface BuildScheduleDataOutput {
 
 async function buildScheduleData(options: BuildScheduleDataOptions): Promise<BuildScheduleDataOutput> {
   const { userId, startDate, endDate, taskOrder } = options;
+  const only = options.onlyTaskIds ? new Set(options.onlyTaskIds) : undefined;
   const now = new Date();
 
   const [openTasks, availabilityBlocks, existingPlansWithItems, userRecord, scheduledElsewhere] = await Promise.all([
@@ -193,7 +196,7 @@ async function buildScheduleData(options: BuildScheduleDataOptions): Promise<Bui
   // Planning a range must not schedule a task a second time when it is already
   // planned on another upcoming day.
   const alreadyPlanned = new Set(scheduledElsewhere.map((row) => row.taskId));
-  const eligibleTasks = openTasks.filter((t) => !alreadyPlanned.has(t.id));
+  const eligibleTasks = openTasks.filter((t) => !alreadyPlanned.has(t.id) && (!only || only.has(t.id)));
 
   const planIds = existingPlansWithItems.map((plan) => plan.id);
   const itemsInRange =
@@ -210,11 +213,14 @@ async function buildScheduleData(options: BuildScheduleDataOptions): Promise<Bui
       : [];
 
   // Items still SCHEDULED are about to be replaced, so they must not block
-  // their own slots. Completed/skipped items are kept and stay busy.
+  // their own slots. Completed/skipped items are kept and stay busy, and so do
+  // scheduled items of tasks outside `onlyTaskIds`.
+  const staysBusy = (item: (typeof itemsInRange)[number]) =>
+    item.status !== "SCHEDULED" || (only !== undefined && !only.has(item.taskId ?? ""));
   const busyItemsWithTask = itemsInRange
-    .filter((item) => item.status !== "SCHEDULED")
+    .filter(staysBusy)
     .map(({ taskId, startTime, endTime }) => ({ taskId, startTime, endTime }));
-  const existingItems: TimeWindow[] = buildBusyWindows(itemsInRange);
+  const existingItems: TimeWindow[] = buildBusyWindows(itemsInRange, only);
 
   const timezone = userRecord?.timezone ?? "UTC";
 
@@ -248,6 +254,8 @@ interface PersistScheduleOptions {
   scheduleResult: ScheduleOutput;
   aiGenerated: boolean;
   aiNotes: string | null;
+  /** Replace only these tasks' scheduled items; leave every other item in place. */
+  onlyTaskIds?: string[];
 }
 
 /**
@@ -258,7 +266,7 @@ interface PersistScheduleOptions {
  * and plans left with no items are removed.
  */
 async function persistSchedule(options: PersistScheduleOptions): Promise<GeneratePlanResult> {
-  const { userId, startDate, endDate, timezone, scheduleResult, aiGenerated, aiNotes } = options;
+  const { userId, startDate, endDate, timezone, scheduleResult, aiGenerated, aiNotes, onlyTaskIds } = options;
 
   const itemsByDate = groupScheduledItemsByLocalDate(scheduleResult.scheduled, timezone);
   const inRange = and(
@@ -274,7 +282,13 @@ async function persistSchedule(options: PersistScheduleOptions): Promise<Generat
     if (planIds.length > 0) {
       await tx
         .delete(scheduleItem)
-        .where(and(inArray(scheduleItem.dailyPlanId, planIds), eq(scheduleItem.status, "SCHEDULED")));
+        .where(
+          and(
+            inArray(scheduleItem.dailyPlanId, planIds),
+            eq(scheduleItem.status, "SCHEDULED"),
+            onlyTaskIds ? inArray(scheduleItem.taskId, onlyTaskIds.length > 0 ? onlyTaskIds : [""]) : undefined
+          )
+        );
     }
 
     const planIdByDate = new Map<string, string>();
@@ -474,9 +488,14 @@ export async function confirmTaskProposalAction(
       }
     }
 
+    // Task ids in the order the user confirmed them; only these are planned.
+    const proposalTaskIds: string[] = [];
+
     await db.transaction(async (tx) => {
       for (const item of validated.items) {
-        if (item.type === "new") {
+        if (item.type === "existing") {
+          proposalTaskIds.push(item.taskId);
+        } else {
           const [created] = await tx
             .insert(task)
             .values({
@@ -493,14 +512,19 @@ export async function confirmTaskProposalAction(
           if (!created) {
             throw new Error("Failed to create task");
           }
+          proposalTaskIds.push(created.id);
         }
       }
     });
 
+    // Plan only what the user kept in the proposal, in that order. Tasks they
+    // removed, and every other task, keep whatever slots they already had.
     const scheduleData = await buildScheduleData({
       userId,
       startDate: validated.startDate,
       endDate: validated.endDate,
+      onlyTaskIds: proposalTaskIds,
+      taskOrder: proposalTaskIds,
     });
 
     const planResult = await persistSchedule({
@@ -511,6 +535,7 @@ export async function confirmTaskProposalAction(
       scheduleResult: scheduleData.baseSchedule,
       aiGenerated: false,
       aiNotes: null,
+      onlyTaskIds: proposalTaskIds,
     });
 
     revalidatePlannerViews();

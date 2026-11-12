@@ -2,6 +2,8 @@ import { requireAuth } from "@/lib/session";
 import { getUserAvailabilityQuery, getUserTimezoneQuery } from "@/actions/availability";
 import { AvailabilityManager } from "@/components/availability/availability-manager";
 import { SignOutButton } from "@/components/shell/sign-out-button";
+import { listSubjectsQuery } from "@/actions/study";
+import { SubjectsManager } from "@/components/study/subjects-manager";
 
 export const metadata = {
   title: "Me",
@@ -9,7 +11,11 @@ export const metadata = {
 
 export default async function MePage() {
   const session = await requireAuth("/me");
-  const [blocks, timezone] = await Promise.all([getUserAvailabilityQuery(), getUserTimezoneQuery()]);
+  const [blocks, timezone, subjects] = await Promise.all([
+    getUserAvailabilityQuery(),
+    getUserTimezoneQuery(),
+    listSubjectsQuery(),
+  ]);
 
   return (
     <main className="mx-auto max-w-2xl px-5 pt-6 sm:px-8 lg:px-10 lg:pt-10">
@@ -20,6 +26,10 @@ export default async function MePage() {
 
       <div className="mt-8">
         <AvailabilityManager initialBlocks={blocks} initialTimezone={timezone} />
+      </div>
+
+      <div className="mt-10">
+        <SubjectsManager initialSubjects={subjects} />
       </div>
 
       <section aria-labelledby="account-heading" className="mt-10">

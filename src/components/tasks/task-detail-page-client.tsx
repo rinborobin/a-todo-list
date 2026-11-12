@@ -12,9 +12,10 @@ interface TaskDetailPageClientProps {
   task: Task;
   timezone: string;
   now: Date;
+  subjects: { id: string; name: string; archived: boolean }[];
 }
 
-export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClientProps) {
+export function TaskDetailPageClient({ task, timezone, now, subjects }: TaskDetailPageClientProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -28,6 +29,7 @@ export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClie
     status?: Task["status"];
     estimatedMinutes?: number | null;
     deadline?: string | null;
+    subjectId?: string | null;
   }) => {
     const res = await updateTaskAction(task.id, {
       title: data.title,
@@ -36,6 +38,7 @@ export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClie
       status: data.status,
       estimatedMinutes: data.estimatedMinutes ?? null,
       deadline: data.deadline ?? null,
+      subjectId: data.subjectId ?? null,
     });
 
     if (!res.success) {
@@ -75,6 +78,7 @@ export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClie
         task={task}
         timezone={timezone}
         now={now}
+        subjectName={subjects.find((s) => s.id === task.subjectId)?.name ?? null}
         onEdit={() => setIsEditing(true)}
         onDelete={() => setIsDeleting(true)}
       />
@@ -85,6 +89,7 @@ export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClie
           onClose={() => setIsEditing(false)}
           onSubmit={handleEdit}
           initialTask={task}
+          subjects={subjects.filter((s) => !s.archived || s.id === task.subjectId)}
         />
       )}
 

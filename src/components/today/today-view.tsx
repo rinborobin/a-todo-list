@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { TodayData } from "@/actions/planner";
 import type { Task } from "@/db/schema";
+import type { StudyNextSuggestion } from "@/lib/study/next";
 import { DayRail } from "@/components/planner/day-rail";
+import { StudyNow, type RunningTimer } from "@/components/study/study-now";
+import { useMinuteClock } from "@/components/study/use-minute-clock";
 import { buttonClasses } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { describeDue, formatDayHeading, formatDuration } from "@/lib/format";
@@ -14,21 +17,16 @@ import { ReplanButton } from "./replan-button";
 interface TodayViewProps {
   data: TodayData;
   initialNow: Date;
-}
-
-/** Re-renders every minute so "in 40 min" and the now marker stay current. */
-function useMinuteClock(initial: Date): Date {
-  const [now, setNow] = useState(initial);
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return now;
+  study: {
+    suggestion: StudyNextSuggestion | null;
+    running: RunningTimer | null;
+    subjects: { id: string; name: string }[];
+  };
 }
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
-export function TodayView({ data, initialNow }: TodayViewProps) {
+export function TodayView({ data, initialNow, study }: TodayViewProps) {
   const now = useMinuteClock(initialNow);
   const { timezone, today, items, deadlines, unplanned, hasAvailability } = data;
   const [statuses, setStatuses] = useState<Record<string, string>>({});
@@ -67,8 +65,18 @@ export function TodayView({ data, initialNow }: TodayViewProps) {
         )}
       </header>
 
-      <div className="mt-6 grid gap-10 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-14">
-        <section aria-labelledby="plan-heading" className="min-w-0">
+      <div className="mt-6 grid gap-10 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:gap-y-10">
+        {/* Phones: first, above the plan. Laptops: top of the side column. */}
+        <div className="lg:col-start-2 lg:row-start-1">
+          <StudyNow
+            suggestion={study.suggestion}
+            running={study.running}
+            subjects={study.subjects}
+            initialNow={initialNow}
+          />
+        </div>
+
+        <section aria-labelledby="plan-heading" className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <div className="mb-6 lg:hidden">{deadlineNote}</div>
 
           <div className="mb-3 flex items-center justify-between">
@@ -109,8 +117,8 @@ export function TodayView({ data, initialNow }: TodayViewProps) {
           <div className="mt-10 lg:hidden">{unplannedList}</div>
         </section>
 
-        <aside className="flex flex-col gap-10">
-          <QuickAdd timezone={timezone} />
+        <aside className="flex flex-col gap-10 lg:col-start-2 lg:row-start-2">
+          <QuickAdd timezone={timezone} subjects={study.subjects} />
           <div className="hidden lg:block">{deadlineNote}</div>
           <div className="hidden lg:block">{unplannedList}</div>
         </aside>

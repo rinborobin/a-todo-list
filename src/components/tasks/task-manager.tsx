@@ -16,6 +16,7 @@ interface TaskManagerProps {
   initialTasks: Task[];
   timezone: string;
   now: Date;
+  subjects: { id: string; name: string; archived: boolean }[];
 }
 
 type View = "open" | "done" | "all";
@@ -33,7 +34,9 @@ function isOpen(task: Task) {
   return task.status === "TODO" || task.status === "IN_PROGRESS";
 }
 
-export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
+export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManagerProps) {
+  const subjectName = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects]);
+  const activeSubjects = useMemo(() => subjects.filter((s) => !s.archived), [subjects]);
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [, startTransition] = useTransition();
@@ -89,6 +92,7 @@ export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
     status?: TaskStatus;
     estimatedMinutes?: number | null;
     deadline?: string | null;
+    subjectId?: string | null;
   }) => {
     setActionError(null);
     const res = editingTask
@@ -99,6 +103,7 @@ export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
           status: data.status,
           estimatedMinutes: data.estimatedMinutes ?? null,
           deadline: data.deadline ?? null,
+          subjectId: data.subjectId ?? null,
         })
       : await createTaskAction({
           title: data.title,
@@ -107,6 +112,7 @@ export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
           status: "TODO",
           estimatedMinutes: data.estimatedMinutes ?? null,
           deadline: data.deadline ?? null,
+          subjectId: data.subjectId ?? null,
         });
 
     if (!res.success) {
@@ -225,6 +231,7 @@ export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
                   <TaskRow
                     key={task.id}
                     task={task}
+                    subjectName={task.subjectId ? subjectName.get(task.subjectId) : undefined}
                     now={now}
                     timezone={timezone}
                     busy={updatingTaskId === task.id}
@@ -252,6 +259,7 @@ export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
           }}
           onSubmit={handleSaveTask}
           initialTask={editingTask}
+          subjects={activeSubjects}
         />
       )}
 

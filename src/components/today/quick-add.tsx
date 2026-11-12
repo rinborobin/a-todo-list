@@ -25,7 +25,7 @@ function formatDeadline(date: Date, timezone: string): string {
  * One-line task entry. On phones it floats above the tab bar; on laptops it
  * sits at the top of the side column. Press "n" anywhere to focus it.
  */
-export function QuickAdd({ timezone }: { timezone: string }) {
+export function QuickAdd({ timezone, subjects = [] }: { timezone: string; subjects?: { id: string; name: string }[] }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
@@ -48,7 +48,7 @@ export function QuickAdd({ timezone }: { timezone: string }) {
   const onChange = (value: string) => {
     setText(value);
     setMessage(null);
-    setParsed(value.trim() ? parseQuickAdd(value, { now: new Date(), timezone }) : null);
+    setParsed(value.trim() ? parseQuickAdd(value, { now: new Date(), timezone, subjects }) : null);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -66,6 +66,7 @@ export function QuickAdd({ timezone }: { timezone: string }) {
         status: "TODO",
         estimatedMinutes: parsed.estimatedMinutes,
         deadline: parsed.deadline?.toISOString() ?? null,
+        subjectId: parsed.subjectId,
       });
 
       if (!result.success) {
@@ -99,7 +100,7 @@ export function QuickAdd({ timezone }: { timezone: string }) {
           id="quick-add"
           value={text}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Add a task: essay due fri 5pm 2h"
+          placeholder={subjects.length > 0 ? "Add a task: essay #calc fri 5pm 2h" : "Add a task: essay due fri 5pm 2h"}
           autoComplete="off"
           enterKeyHint="done"
           maxLength={200}
@@ -140,6 +141,16 @@ export function QuickAdd({ timezone }: { timezone: string }) {
                   {parsed.estimateIsDefault && <span className="font-normal text-faint"> (default)</span>}
                 </dd>
               </div>
+              {parsed.subjectTag && (
+                <div className="flex gap-1.5">
+                  <dt className="text-muted">Subject</dt>
+                  <dd className={parsed.subjectId ? "font-medium" : "text-danger"}>
+                    {parsed.subjectId
+                      ? subjects.find((s) => s.id === parsed.subjectId)?.name
+                      : `No subject called "${parsed.subjectTag}"`}
+                  </dd>
+                </div>
+              )}
               {parsed.priority !== "MEDIUM" && (
                 <div className="flex gap-1.5">
                   <dt className="text-muted">Priority</dt>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { updateScheduleItemStatusAction, type PlanWithItems } from "@/actions/planner";
 import { describeDue, formatClock, formatDuration, formatStartsIn } from "@/lib/format";
 import { CheckIcon } from "@/components/ui/icons";
+import { RatingPicker } from "@/components/study/rating-picker";
 
 type Item = PlanWithItems["items"][number];
 type Status = Item["status"];
@@ -25,6 +26,7 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange }: 
   const router = useRouter();
   const [overrides, setOverrides] = useState<Record<string, Status>>({});
   const [error, setError] = useState<string | null>(null);
+  const [ratingPrompt, setRatingPrompt] = useState<{ itemId: string; sessionId: string } | null>(null);
   const [, startTransition] = useTransition();
 
   const sorted = [...items]
@@ -49,6 +51,8 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange }: 
         setError(result.error);
         return;
       }
+      const sessionId = result.data.studySessionId;
+      setRatingPrompt(next === "COMPLETED" && sessionId ? { itemId: item.id, sessionId } : null);
       router.refresh();
     });
   };
@@ -141,6 +145,12 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange }: 
                     </span>
                   )}
                 </p>
+
+                {ratingPrompt?.itemId === item.id && isDone && (
+                  <div className="mt-2">
+                    <RatingPicker sessionId={ratingPrompt.sessionId} prompt onDone={() => setRatingPrompt(null)} />
+                  </div>
+                )}
               </li>
             </Fragment>
           );

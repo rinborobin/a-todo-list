@@ -7,6 +7,7 @@ import { CheckIcon, PencilIcon, TrashIcon } from "@/components/ui/icons";
 
 interface TaskRowProps {
   task: Task;
+  subjectName?: string;
   now: Date;
   timezone: string;
   busy?: boolean;
@@ -15,12 +16,13 @@ interface TaskRowProps {
   onDelete: (task: Task) => void;
 }
 
-export function TaskRow({ task, now, timezone, busy, onToggle, onEdit, onDelete }: TaskRowProps) {
+export function TaskRow({ task, subjectName, now, timezone, busy, onToggle, onEdit, onDelete }: TaskRowProps) {
   const isDone = task.status === "COMPLETED";
   const isCancelled = task.status === "CANCELLED";
   const due = task.deadline && !isDone && !isCancelled ? describeDue(task.deadline, now, timezone) : null;
 
   const meta: React.ReactNode[] = [];
+  if (subjectName) meta.push(<span key="subject" className="font-medium text-ink-soft">{subjectName}</span>);
   if (due) {
     meta.push(
       <span key="due" className={due.tone === "normal" ? "" : "font-medium text-accent"}>

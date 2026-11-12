@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Task, TaskPriority, TaskStatus } from "@/db/schema";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validations/task";
+import { createSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorNote, Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -17,8 +18,10 @@ interface TaskFormDialogProps {
     status?: TaskStatus;
     estimatedMinutes?: number | null;
     deadline?: string | null;
+    subjectId?: string | null;
   }) => Promise<{ success: boolean; error?: string; fieldErrors?: Record<string, string[] | undefined> }>;
   initialTask?: Task | null;
+  subjects?: { id: string; name: string }[];
 }
 
 const priorities: { label: string; value: TaskPriority }[] = [
@@ -49,7 +52,7 @@ function presetLabel(minutes: number) {
   return minutes < 60 ? `${minutes}m` : minutes % 60 === 0 ? `${minutes / 60}h` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask }: TaskFormDialogProps) {
+export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask, subjects = [] }: TaskFormDialogProps) {
   const isEditing = !!initialTask;
 
   const [title, setTitle] = useState(initialTask?.title || "");
@@ -60,6 +63,23 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask }: TaskF
     initialTask?.estimatedMinutes ? String(initialTask.estimatedMinutes) : isEditing ? "" : "60"
   );
   const [deadline, setDeadline] = useState<string>(toDatetimeLocalString(initialTask?.deadline));
+  const [subjectOptions, setSubjectOptions] = useState(subjects);
+  const [subjectId, setSubjectId] = useState<string>(initialTask?.subjectId ?? "");
+  const [newSubject, setNewSubject] = useState<string | null>(null);
+  const [subjectError, setSubjectError] = useState<string | null>(null);
+
+  const addSubject = async () => {
+    if (!newSubject?.trim()) return;
+    setSubjectError(null);
+    const res = await createSubjectAction({ name: newSubject });
+    if (!res.success) {
+      setSubjectError(res.error);
+      return;
+    }
+    setSubjectOptions((prev) => [...prev, { id: res.data.id, name: res.data.name }]);
+    setSubjectId(res.data.id);
+    setNewSubject(null);
+  };
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
@@ -77,6 +97,7 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask }: TaskF
       status: isEditing ? status : undefined,
       estimatedMinutes: estimatedMinutes.trim() === "" ? null : Number(estimatedMinutes),
       deadline: deadline.trim() === "" ? null : new Date(deadline).toISOString(),
+      subjectId: subjectId || null,
     };
 
     const schema = isEditing ? updateTaskSchema : createTaskSchema;
@@ -116,6 +137,45 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask }: TaskF
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Database lab report"
           />
+        </Field>
+
+        <Field label="Subject" htmlFor="task-subject" error={subjectError ?? undefined}>
+          {newSubject === null ? (
+            <Select
+              id="task-subject"
+              value={subjectId}
+              onChange={(e) => (e.target.value === "__new" ? setNewSubject("") : setSubjectId(e.target.value))}
+            >
+              <option value="">No subject</option>
+              {subjectOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+              <option value="__new">New subject…</option>
+            </Select>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                id="task-subject"
+                autoFocus
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void addSubject();
+                  }
+                }}
+                placeholder="Subject name"
+                maxLength={60}
+              />
+              <Button onClick={() => void addSubject()}>Add</Button>
+              <Button variant="ghost" onClick={() => setNewSubject(null)}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">

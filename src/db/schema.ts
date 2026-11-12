@@ -1,4 +1,16 @@
-import { boolean, check, date, index, integer, pgEnum, pgTable, text, time, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  time,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const user = pgTable("user", {
@@ -87,6 +99,24 @@ export const availability = pgTable(
   ]
 );
 
+export const subject = pgTable(
+  "subject",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // Subjects are archived rather than deleted so study history keeps its label.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("subject_user_name_idx").on(table.userId, sql`lower(${table.name})`)]
+);
+
 export const task = pgTable(
   "task",
   {
@@ -96,6 +126,7 @@ export const task = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subject.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description"),
     priority: taskPriorityEnum("priority").notNull().default("MEDIUM"),
@@ -162,6 +193,40 @@ export const scheduleItem = pgTable(
   ]
 );
 
+export const studySourceEnum = pgEnum("study_source", ["BLOCK", "TIMER", "MANUAL"]);
+export const studyRatingEnum = pgEnum("study_rating", ["STRUGGLED", "OK", "GOT_IT"]);
+
+export const studySession = pgTable(
+  "study_session",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subject.id, { onDelete: "set null" }),
+    taskId: text("task_id").references(() => task.id, { onDelete: "set null" }),
+    // Set for sessions logged by ticking a planned block; unique so a block logs once.
+    scheduleItemId: text("schedule_item_id").references(() => scheduleItem.id, { onDelete: "set null" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    // Null while a timer is running.
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    minutes: integer("minutes").notNull().default(0),
+    source: studySourceEnum("source").notNull(),
+    rating: studyRatingEnum("rating"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("study_session_user_started_idx").on(table.userId, table.startedAt),
+    uniqueIndex("study_session_schedule_item_idx").on(table.scheduleItemId),
+    // At most one running timer per user.
+    uniqueIndex("study_session_running_idx").on(table.userId).where(sql`${table.endedAt} is null`),
+    check("study_session_minutes_range", sql`${table.minutes} >= 0 and ${table.minutes} <= 1440`),
+  ]
+);
+
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
@@ -182,3 +247,8 @@ export type NewScheduleItem = typeof scheduleItem.$inferInsert;
 export type ScheduleItemStatus = (typeof scheduleItemStatusEnum.enumValues)[number];
 
 
+
+export type Subject = typeof subject.$inferSelect;
+export type StudySession = typeof studySession.$inferSelect;
+export type StudySource = (typeof studySourceEnum.enumValues)[number];
+export type StudyRating = (typeof studyRatingEnum.enumValues)[number];

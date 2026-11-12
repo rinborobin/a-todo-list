@@ -14,7 +14,7 @@ Single-package Next.js 16 app (App Router). See `.ai/` for detailed specs and fe
 
 ## Stack & versions
 
-- Next.js 16.3.4, React 19.2.8, TypeScript 5
+- Next.js 16.4.6, React 19.2.8, TypeScript 5
 - Tailwind CSS v4 (CSS-based config — no `tailwind.config` file)
 - shadcn/ui components in `src/components/ui/`
 - PostgreSQL via Drizzle ORM + Neon (`@neondatabase/serverless`)

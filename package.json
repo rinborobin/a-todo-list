@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/ai/study-next.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts",
+    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/ai/study-next.test.ts src/lib/allowed-emails.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -18,7 +18,7 @@
     "ai": "^7.0.93",
     "better-auth": "^1.7.3",
     "drizzle-orm": "^0.45.2",
-    "next": "16.3.4",
+    "next": "16.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
@@ -32,7 +32,7 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"

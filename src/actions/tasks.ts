@@ -5,6 +5,7 @@ import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/db";
 import { scheduleItem, task, type Task } from "@/db/schema";
 import { requireAuth, assertUserOwnership } from "@/lib/session";
+import { ownSubjectId } from "@/lib/study/ownership";
 import {
   createTaskSchema,
   updateTaskSchema,
@@ -48,10 +49,13 @@ export async function createTaskAction(input: CreateTaskInput): Promise<ActionRe
       };
     }
 
+    const subjectId = await ownSubjectId(session.user.id, result.data.subjectId);
+
     const [newTask] = await db
       .insert(task)
       .values({
         userId: session.user.id,
+        subjectId,
         title: result.data.title,
         description: result.data.description ?? null,
         priority: result.data.priority,
@@ -103,10 +107,13 @@ export async function updateTaskAction(
 
     assertUserOwnership(existingTask.userId, session.user.id);
 
+    const { subjectId, ...fields } = result.data;
     const [updatedTask] = await db
       .update(task)
       .set({
-        ...result.data,
+        ...fields,
+        // Only touch the subject when the caller sent one; verify ownership first.
+        ...(subjectId !== undefined ? { subjectId: await ownSubjectId(session.user.id, subjectId) } : {}),
         updatedAt: new Date(),
       })
       .where(and(eq(task.id, id), eq(task.userId, session.user.id)))

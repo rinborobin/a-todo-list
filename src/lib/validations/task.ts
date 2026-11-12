@@ -39,6 +39,7 @@ export const createTaskSchema = z.object({
   status: TaskStatus.default("TODO"),
   estimatedMinutes: estimatedMinutesSchema,
   deadline: deadlineSchema,
+  subjectId: z.string().min(1).nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -59,6 +60,7 @@ export const updateTaskSchema = z.object({
   status: TaskStatus.optional(),
   estimatedMinutes: estimatedMinutesSchema,
   deadline: deadlineSchema,
+  subjectId: z.string().min(1).nullable().optional(),
 });
 
 export const taskFilterSchema = z.object({

@@ -102,6 +102,58 @@ describe("parseQuickAdd", () => {
     assert.equal(parseQuickAdd("tomorrow 5pm", utc).title, "");
   });
 
+  describe("#subject", () => {
+    const subjects = [
+      { id: "calc", name: "Calculus" },
+      { id: "db", name: "Databases" },
+      { id: "dbs", name: "DB Security" },
+    ];
+    const withSubjects = { ...utc, subjects };
+
+    it("matches a subject by name prefix and removes the tag from the title", () => {
+      const result = parseQuickAdd("problem set 4 #calc fri 2h", withSubjects);
+      assert.equal(result.subjectId, "calc");
+      assert.equal(result.subjectTag, "calc");
+      assert.equal(result.title, "Problem set 4");
+      assert.equal(result.estimatedMinutes, 120);
+    });
+
+    it("ignores case", () => {
+      assert.equal(parseQuickAdd("#CALC revise", withSubjects).subjectId, "calc");
+    });
+
+    it("prefers an exact name over a prefix match", () => {
+      const result = parseQuickAdd("lab #db", {
+        ...utc,
+        subjects: [
+          { id: "dbs", name: "DB Security" },
+          { id: "exact", name: "db" },
+        ],
+      });
+      assert.equal(result.subjectId, "exact");
+    });
+
+    it("leaves an unknown tag in the title and reports it", () => {
+      const result = parseQuickAdd("essay #history", withSubjects);
+      assert.equal(result.subjectId, null);
+      assert.equal(result.subjectTag, "history");
+      assert.equal(result.title, "Essay #history");
+    });
+
+    it("leaves an ambiguous prefix unmatched", () => {
+      // "d" fits both Databases and DB Security.
+      const result = parseQuickAdd("lab #d", withSubjects);
+      assert.equal(result.subjectId, null);
+      assert.equal(result.subjectTag, "d");
+    });
+
+    it("has no subject when no tag is typed", () => {
+      const result = parseQuickAdd("essay", withSubjects);
+      assert.equal(result.subjectId, null);
+      assert.equal(result.subjectTag, null);
+    });
+  });
+
   it("interprets dates and times in the user's timezone", () => {
     // 20:00 Wednesday in Los Angeles; tomorrow 09:00 local is Thursday 17:00 UTC.
     const la = { now: new Date("2026-11-12T04:00:00Z"), timezone: "America/Los_Angeles" };

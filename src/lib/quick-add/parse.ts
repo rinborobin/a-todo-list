@@ -14,11 +14,31 @@ export interface QuickAddResult {
   /** True when no duration was typed and the default was used. */
   estimateIsDefault: boolean;
   priority: TaskPriority;
+  /** Subject matched from a "#tag", or null. */
+  subjectId: string | null;
+  /** The tag as typed (without "#"), even when it matched nothing. */
+  subjectTag: string | null;
 }
 
 export interface QuickAddOptions {
   now: Date;
   timezone: string;
+  subjects?: { id: string; name: string }[];
+}
+
+/**
+ * Resolves "#calc" to a subject: an exact name wins, otherwise a unique
+ * prefix of the name (spaces ignored). Ambiguous or unknown tags match nothing.
+ */
+function matchSubject(tag: string, subjects: { id: string; name: string }[]): string | null {
+  const needle = tag.toLowerCase();
+  const exact = subjects.find((s) => s.name.toLowerCase() === needle);
+  if (exact) return exact.id;
+  const prefixed = subjects.filter((s) => {
+    const name = s.name.toLowerCase();
+    return name.startsWith(needle) || name.replace(/\s+/g, "").startsWith(needle);
+  });
+  return prefixed.length === 1 ? prefixed[0].id : null;
 }
 
 export const DEFAULT_ESTIMATE_MINUTES = 60;
@@ -64,6 +84,17 @@ export function parseQuickAdd(input: string, options: QuickAddOptions): QuickAdd
     }
     return match;
   };
+
+  // Subject tag. Only removed from the title when it matches a subject.
+  let subjectId: string | null = null;
+  let subjectTag: string | null = null;
+  const tagPattern = /(?<=\s)#([\p{L}\p{N}_-]+)(?=\s)/u;
+  const tag = tagPattern.exec(rest);
+  if (tag) {
+    subjectTag = tag[1];
+    subjectId = matchSubject(subjectTag, options.subjects ?? []);
+    if (subjectId) take(tagPattern);
+  }
 
   // Priority
   let priority: TaskPriority = "MEDIUM";
@@ -175,6 +206,8 @@ export function parseQuickAdd(input: string, options: QuickAddOptions): QuickAdd
     estimatedMinutes: estimatedMinutes ?? DEFAULT_ESTIMATE_MINUTES,
     estimateIsDefault: estimatedMinutes === null,
     priority,
+    subjectId,
+    subjectTag,
   };
 }
 

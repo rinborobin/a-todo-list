@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, notExists, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, notExists, or } from "drizzle-orm";
 import { db } from "@/db";
-import { dailyPlan, scheduleItem, task, availability, user } from "@/db/schema";
+import { dailyPlan, scheduleItem, studySession, task, availability, user } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
 import { safeErrorMessage } from "@/lib/error";
+import { ownSubjectId } from "@/lib/study/ownership";
 import {
   generatePlanSchema,
   updateScheduleItemStatusSchema,
@@ -592,11 +593,12 @@ export async function deletePlanAction(id: string): Promise<ActionResult<void>> 
 export async function updateScheduleItemStatusAction(
   id: string,
   input: UpdateScheduleItemStatusInput
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ studySessionId: string | null }>> {
   try {
     const session = await requireAuth();
     const userId = session.user.id;
     const validated = updateScheduleItemStatusSchema.parse(input);
+    let studySessionId: string | null = null;
 
     const item = await db.query.scheduleItem.findFirst({
       where: eq(scheduleItem.id, id),
@@ -634,10 +636,66 @@ export async function updateScheduleItemStatusAction(
             .where(and(ownTask, eq(task.status, "COMPLETED")));
         }
       }
+
+      // Study log: a finished block counts as studied time, unless a timer
+      // already covered the same task at that time.
+      if (validated.status === "COMPLETED") {
+        const linkedTask = item.taskId
+          ? await tx.query.task.findFirst({
+              where: and(eq(task.id, item.taskId), eq(task.userId, userId)),
+              columns: { subjectId: true },
+            })
+          : null;
+        const overlappingTimer = item.taskId
+          ? await tx.query.studySession.findFirst({
+              where: and(
+                eq(studySession.userId, userId),
+                eq(studySession.taskId, item.taskId),
+                eq(studySession.source, "TIMER"),
+                lt(studySession.startedAt, item.endTime),
+                or(isNull(studySession.endedAt), gt(studySession.endedAt, item.startTime))
+              ),
+              columns: { id: true },
+            })
+          : null;
+
+        if (!overlappingTimer) {
+          const minutes = Math.round((item.endTime.getTime() - item.startTime.getTime()) / 60_000);
+          await tx
+            .insert(studySession)
+            .values({
+              userId,
+              subjectId: linkedTask?.subjectId ?? null,
+              taskId: item.taskId,
+              scheduleItemId: item.id,
+              startedAt: item.startTime,
+              endedAt: item.endTime,
+              minutes,
+              source: "BLOCK",
+            })
+            .onConflictDoNothing({ target: studySession.scheduleItemId });
+          const logged = await tx.query.studySession.findFirst({
+            where: and(eq(studySession.scheduleItemId, item.id), eq(studySession.userId, userId)),
+            columns: { id: true },
+          });
+          studySessionId = logged?.id ?? null;
+        }
+      } else {
+        await tx
+          .delete(studySession)
+          .where(
+            and(
+              eq(studySession.scheduleItemId, item.id),
+              eq(studySession.userId, userId),
+              eq(studySession.source, "BLOCK")
+            )
+          );
+      }
     });
 
     revalidatePlannerViews();
-    return { success: true, data: undefined };
+    revalidatePath("/progress");
+    return { success: true, data: { studySessionId } };
   } catch (error) {
     return { success: false, error: safeErrorMessage(error, "Failed to update schedule item") };
   }
@@ -755,10 +813,13 @@ export async function quickAddTaskAction(input: unknown): Promise<ActionResult<Q
       return { success: false, error: first?.message ?? "Check the task details" };
     }
 
+    const subjectId = await ownSubjectId(session.user.id, parsed.data.subjectId);
+
     const [created] = await db
       .insert(task)
       .values({
         userId: session.user.id,
+        subjectId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         priority: parsed.data.priority,

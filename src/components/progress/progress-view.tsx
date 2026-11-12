@@ -16,6 +16,8 @@ import { PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { DailyStrip } from "./daily-strip";
 import { LogStudyDialog } from "./log-study-dialog";
 import { SubjectMeters, type SubjectMeterRow } from "./subject-meters";
+import { LearnedSection } from "./learned-section";
+import type { Learned } from "@/lib/study/learned";
 
 interface ProgressViewProps {
   timezone: string;
@@ -29,6 +31,7 @@ interface ProgressViewProps {
   taskTitles: Record<string, string>;
   activeSubjects: { id: string; name: string }[];
   topics: { id: string; name: string; subjectId: string }[];
+  learned: Learned;
   suggestion: StudyNextSuggestion | null;
   running: RunningTimer | null;
 }
@@ -105,6 +108,8 @@ export function ProgressView(props: ProgressViewProps) {
               </p>
             )}
           </section>
+
+          <LearnedSection learned={props.learned} />
 
           <section aria-labelledby="sessions-heading">
             <h2 id="sessions-heading" className={`${sectionTitle} mb-2`}>

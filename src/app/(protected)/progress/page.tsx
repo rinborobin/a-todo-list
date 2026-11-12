@@ -3,6 +3,7 @@ import { ProgressView } from "@/components/progress/progress-view";
 import type { SubjectMeterRow } from "@/components/progress/subject-meters";
 import { rankStudyNext } from "@/lib/study/next";
 import { dailyTotals, summarizeStudy } from "@/lib/study/stats";
+import { buildLearned } from "@/lib/study/learned";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 
 export const metadata = {
@@ -78,6 +79,14 @@ export default async function ProgressPage() {
       taskTitles={study.taskTitles}
       activeSubjects={active.map(({ id, name }) => ({ id, name }))}
       topics={study.topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
+      learned={buildLearned({
+        subjects: active,
+        topics: study.topics,
+        sessions: study.sessions,
+        finishedTaskEstimates: study.finishedTaskEstimates,
+        timezone,
+        now,
+      })}
       suggestion={suggestion}
       running={running}
     />

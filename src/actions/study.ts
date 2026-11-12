@@ -618,6 +618,8 @@ export interface StudyContext {
   taskTitles: Record<string, string>;
   /** All topics, most recently used first. */
   topics: Topic[];
+  /** Finished tasks with an estimate and the minutes logged on them. */
+  finishedTaskEstimates: { estimatedMinutes: number; actualMinutes: number }[];
 }
 
 /** Everything the Today "Study next" line and the Progress screen need. */
@@ -649,12 +651,30 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
     sessionTaskIds.length > 0
       ? await db.query.task.findMany({
           where: and(eq(task.userId, userId), inArray(task.id, sessionTaskIds)),
-          columns: { id: true, title: true },
+          columns: { id: true, title: true, estimatedMinutes: true, status: true },
         })
       : [];
   const taskTitles = Object.fromEntries(sessionTasks.map((t) => [t.id, t.title]));
 
-  return { timezone, subjects, sessions, running: running ?? null, openTasks, taskTitles, topics };
+  // Finished tasks with an estimate, next to the minutes actually studied on them.
+  const minutesByTask = new Map<string, number>();
+  for (const s of sessions) {
+    if (s.taskId) minutesByTask.set(s.taskId, (minutesByTask.get(s.taskId) ?? 0) + s.minutes);
+  }
+  const finishedTaskEstimates = sessionTasks
+    .filter((t) => t.status === "COMPLETED" && t.estimatedMinutes)
+    .map((t) => ({ estimatedMinutes: t.estimatedMinutes!, actualMinutes: minutesByTask.get(t.id) ?? 0 }));
+
+  return {
+    timezone,
+    subjects,
+    sessions,
+    running: running ?? null,
+    openTasks,
+    taskTitles,
+    topics,
+    finishedTaskEstimates,
+  };
 }
 
 // ---------------------------------------------------------------- AI suggestion

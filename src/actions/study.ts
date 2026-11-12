@@ -36,6 +36,8 @@ import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { quickAddTaskAction, replanWeekAction } from "@/actions/planner";
 import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
 import { summarizeStudy } from "@/lib/study/stats";
+import { replayMemory, reviewStatus } from "@/lib/study/memory";
+import { estimateRatio, typicalMinutes, usualHours } from "@/lib/study/habits";
 import { suggestStudyNextWithAi } from "@/lib/ai/study-next";
 import type { StudyNextAiContext } from "@/lib/ai/study-next-schemas";
 
@@ -682,42 +684,80 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
 export interface AiStudyNextResult {
   source: "ai" | "ranking";
   suggestion: StudyNextSuggestion | null;
+  /** One concrete thing to do, from the AI coach; null for the ranking fallback. */
+  step: string | null;
 }
 
 /**
- * Asks the AI what to study next. The model only sees aggregated stats and
- * open tasks; its answer is validated against the user's own data, and any
- * failure falls back to the deterministic ranking.
+ * Asks the AI coach what to study next and what exactly to do. The model sees
+ * aggregated stats, the memory model's review schedule, topics, exams, goals
+ * and learned habits, never session notes. Its answer is validated against the
+ * user's own data, and any failure falls back to the deterministic ranking.
  */
 export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextResult>> {
   try {
     const context = await getStudyContextQuery();
     const now = new Date();
+    const { timezone } = context;
+    const today = toLocalDateKey(now, timezone);
     const active = context.subjects.filter((s) => !s.archivedAt);
+    const activeTopics = context.topics.filter((t) => !t.archivedAt);
     const ranking = rankStudyNext({
       subjects: active,
+      topics: activeTopics,
       openTasks: context.openTasks,
       sessions: context.sessions,
       now,
-      timezone: context.timezone,
+      timezone,
     });
-    const fallback: AiStudyNextResult = { source: "ranking", suggestion: ranking[0] ?? null };
+    const fallback: AiStudyNextResult = { source: "ranking", suggestion: ranking[0] ?? null, step: null };
     if (active.length === 0) return { success: true, data: fallback };
 
     const { bySubject } = summarizeStudy(context.sessions, now);
+    const daysSince = (date: Date | null | undefined) =>
+      date ? Math.floor((now.getTime() - date.getTime()) / 86_400_000) : null;
+
     const aiContext: StudyNextAiContext = {
-      currentDate: toLocalDateKey(now, context.timezone),
-      timezone: context.timezone,
+      currentDate: today,
+      timezone,
+      habits: {
+        usualStudyHours: usualHours(context.sessions, timezone),
+        estimateRatio: estimateRatio(context.finishedTaskEstimates),
+      },
       subjects: active.map((s) => {
         const stat = bySubject.get(s.id);
+        const subjectSessions = context.sessions.filter((x) => x.subjectId === s.id);
+        const memory = replayMemory(subjectSessions, { timezone, examDate: s.examDate });
         return {
           id: s.id,
           name: s.name,
+          confidence: s.confidence,
+          examDate: s.examDate,
+          weeklyGoalMinutes: s.weeklyGoalMinutes,
           minutesLast7Days: stat?.minutes7d ?? 0,
-          daysSinceLastStudied: stat?.lastStudiedAt
-            ? Math.floor((now.getTime() - stat.lastStudiedAt.getTime()) / 86_400_000)
-            : null,
+          daysSinceLastStudied: daysSince(stat?.lastStudiedAt),
           latestRating: stat?.latestRating ?? null,
+          typicalMinutes: typicalMinutes(subjectSessions),
+          nextReviewOn: memory?.nextReviewOn ?? null,
+          topics: activeTopics
+            .filter((t) => t.subjectId === s.id)
+            .slice(0, 15)
+            .map((t) => {
+              const topicSessions = subjectSessions.filter((x) => x.topicId === t.id);
+              const topicMemory = replayMemory(topicSessions, { timezone, examDate: s.examDate });
+              const last = topicSessions.reduce<Date | null>(
+                (latest, x) => (!latest || x.startedAt > latest ? x.startedAt : latest),
+                null
+              );
+              return {
+                id: t.id,
+                name: t.name,
+                daysSinceStudied: daysSince(last),
+                lastRating: topicMemory?.lastRating ?? null,
+                nextReviewOn: topicMemory?.nextReviewOn ?? null,
+                dueForReview: topicMemory ? reviewStatus(topicMemory, today).due : false,
+              };
+            }),
           openTasks: context.openTasks
             .filter((t) => t.subjectId === s.id)
             .slice(0, 10)
@@ -734,20 +774,27 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
     const ai = await suggestStudyNextWithAi(aiContext);
     if (!ai) return { success: true, data: fallback };
 
+    // Validated against aiContext already; look the rows up for display.
     const subjectRow = active.find((s) => s.id === ai.subjectId)!;
-    const taskRow = ai.taskId ? context.openTasks.find((t) => t.id === ai.taskId) : null;
+    const topicRow = ai.topicId ? activeTopics.find((t) => t.id === ai.topicId) ?? null : null;
+    const taskRow = ai.taskId ? context.openTasks.find((t) => t.id === ai.taskId) ?? null : null;
+    const topicReview = topicRow
+      ? aiContext.subjects.find((x) => x.id === subjectRow.id)?.topics?.find((t) => t.id === topicRow.id)?.nextReviewOn ?? null
+      : null;
+
     return {
       success: true,
       data: {
         source: "ai",
+        step: ai.step,
         suggestion: {
           subjectId: subjectRow.id,
           subjectName: subjectRow.name,
-          topicId: null,
-          topicName: null,
+          topicId: topicRow?.id ?? null,
+          topicName: topicRow?.name ?? null,
           taskId: taskRow?.id ?? null,
           taskTitle: taskRow?.title ?? null,
-          reviewOn: null,
+          reviewOn: topicReview,
           minutes: ai.minutes,
           reason: ai.reason,
           score: 0,

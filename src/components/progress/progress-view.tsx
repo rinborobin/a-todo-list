@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { askAiStudyNextAction, deleteStudySessionAction } from "@/actions/study";
+import { askAiStudyNextAction, deleteStudySessionAction, type AiStudyNextResult } from "@/actions/study";
 import type { StudySession } from "@/db/schema";
 import type { StudyNextSuggestion } from "@/lib/study/next";
 import { SOURCE_LABEL } from "@/lib/study/labels";
@@ -42,7 +42,7 @@ export function ProgressView(props: ProgressViewProps) {
   const { timezone, today, initialNow, totalMinutes7d, days, subjectRows, sessions, subjectNames, taskTitles } = props;
   const router = useRouter();
   const [logOpen, setLogOpen] = useState(false);
-  const [ai, setAi] = useState<{ source: "ai" | "ranking"; suggestion: StudyNextSuggestion | null } | null>(null);
+  const [ai, setAi] = useState<AiStudyNextResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isAsking, startAsking] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -178,10 +178,16 @@ export function ProgressView(props: ProgressViewProps) {
           />
           {props.activeSubjects.length > 0 && !props.running && (
             <div className="pl-4">
+              {ai?.step && (
+                <div className="rise mb-3 border-l-2 border-accent pl-3">
+                  <p className="text-xs text-muted">What to do</p>
+                  <p className="mt-0.5 text-[15px] leading-snug">{ai.step}</p>
+                </div>
+              )}
               {ai && (
                 <p className="mb-2 text-[13px] text-muted">
                   {ai.source === "ai"
-                    ? "Suggested by AI from your recent study and deadlines."
+                    ? "Suggested by AI from your study history, reviews and deadlines."
                     : "AI was unavailable, so this is the standard suggestion."}
                 </p>
               )}

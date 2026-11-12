@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
-import { CalendarIcon, ListIcon, TodayIcon, UserIcon } from "@/components/ui/icons";
+import { CalendarIcon, ListIcon, ProgressIcon, TodayIcon, UserIcon } from "@/components/ui/icons";
 
 const tabs: { href: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { href: "/today", label: "Today", icon: TodayIcon },
   { href: "/tasks", label: "Tasks", icon: ListIcon },
   { href: "/week", label: "Week", icon: CalendarIcon },
+  { href: "/progress", label: "Progress", icon: ProgressIcon },
   { href: "/me", label: "Me", icon: UserIcon },
 ];
 

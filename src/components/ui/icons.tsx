@@ -312,3 +312,11 @@ export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function ProgressIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden="true" {...props}>
+      <path strokeLinecap="round" d="M4 20h16M7 16.5V12M12 16.5V7M17 16.5v-6.5" />
+    </svg>
+  );
+}

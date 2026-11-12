@@ -4,12 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { rateStudySessionAction } from "@/actions/study";
 import type { StudyRating } from "@/db/schema";
+import { RATING_LABEL } from "@/lib/study/labels";
 
-export const RATING_LABEL: Record<StudyRating, string> = {
-  STRUGGLED: "Struggled",
-  OK: "OK",
-  GOT_IT: "Got it",
-};
 
 const OPTIONS: StudyRating[] = ["STRUGGLED", "OK", "GOT_IT"];
 

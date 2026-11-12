@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { studySession, subject, task, user, type StudySession, type Subject, type Task } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
@@ -15,6 +15,10 @@ import {
   renameSubjectSchema,
   startTimerSchema,
 } from "@/lib/validations/study";
+import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
+import { summarizeStudy } from "@/lib/study/stats";
+import { suggestStudyNextWithAi } from "@/lib/ai/study-next";
+import type { StudyNextAiContext } from "@/lib/ai/study-next-schemas";
 
 export type ActionResult<T = unknown> = { success: true; data: T } | { success: false; error: string };
 
@@ -279,6 +283,8 @@ export interface StudyContext {
   running: StudySession | null;
   /** Open tasks (to do or in progress), for suggestions. */
   openTasks: Task[];
+  /** Titles of tasks referenced by the sessions, including finished ones. */
+  taskTitles: Record<string, string>;
 }
 
 /** Everything the Today "Study next" line and the Progress screen need. */
@@ -303,5 +309,94 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
     }),
   ]);
 
-  return { timezone, subjects, sessions, running: running ?? null, openTasks };
+  const sessionTaskIds = [...new Set(sessions.map((s) => s.taskId).filter((id): id is string => id !== null))];
+  const sessionTasks =
+    sessionTaskIds.length > 0
+      ? await db.query.task.findMany({
+          where: and(eq(task.userId, userId), inArray(task.id, sessionTaskIds)),
+          columns: { id: true, title: true },
+        })
+      : [];
+  const taskTitles = Object.fromEntries(sessionTasks.map((t) => [t.id, t.title]));
+
+  return { timezone, subjects, sessions, running: running ?? null, openTasks, taskTitles };
+}
+
+// ---------------------------------------------------------------- AI suggestion
+
+export interface AiStudyNextResult {
+  source: "ai" | "ranking";
+  suggestion: StudyNextSuggestion | null;
+}
+
+/**
+ * Asks the AI what to study next. The model only sees aggregated stats and
+ * open tasks; its answer is validated against the user's own data, and any
+ * failure falls back to the deterministic ranking.
+ */
+export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextResult>> {
+  try {
+    const context = await getStudyContextQuery();
+    const now = new Date();
+    const active = context.subjects.filter((s) => !s.archivedAt);
+    const ranking = rankStudyNext({
+      subjects: active,
+      openTasks: context.openTasks,
+      sessions: context.sessions,
+      now,
+      timezone: context.timezone,
+    });
+    const fallback: AiStudyNextResult = { source: "ranking", suggestion: ranking[0] ?? null };
+    if (active.length === 0) return { success: true, data: fallback };
+
+    const { bySubject } = summarizeStudy(context.sessions, now);
+    const aiContext: StudyNextAiContext = {
+      currentDate: toLocalDateKey(now, context.timezone),
+      timezone: context.timezone,
+      subjects: active.map((s) => {
+        const stat = bySubject.get(s.id);
+        return {
+          id: s.id,
+          name: s.name,
+          minutesLast7Days: stat?.minutes7d ?? 0,
+          daysSinceLastStudied: stat?.lastStudiedAt
+            ? Math.floor((now.getTime() - stat.lastStudiedAt.getTime()) / 86_400_000)
+            : null,
+          latestRating: stat?.latestRating ?? null,
+          openTasks: context.openTasks
+            .filter((t) => t.subjectId === s.id)
+            .slice(0, 10)
+            .map((t) => ({
+              id: t.id,
+              title: t.title,
+              deadline: t.deadline?.toISOString() ?? null,
+              estimatedMinutes: t.estimatedMinutes,
+            })),
+        };
+      }),
+    };
+
+    const ai = await suggestStudyNextWithAi(aiContext);
+    if (!ai) return { success: true, data: fallback };
+
+    const subjectRow = active.find((s) => s.id === ai.subjectId)!;
+    const taskRow = ai.taskId ? context.openTasks.find((t) => t.id === ai.taskId) : null;
+    return {
+      success: true,
+      data: {
+        source: "ai",
+        suggestion: {
+          subjectId: subjectRow.id,
+          subjectName: subjectRow.name,
+          taskId: taskRow?.id ?? null,
+          taskTitle: taskRow?.title ?? null,
+          minutes: ai.minutes,
+          reason: ai.reason,
+          score: 0,
+        },
+      },
+    };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not get a suggestion") };
+  }
 }

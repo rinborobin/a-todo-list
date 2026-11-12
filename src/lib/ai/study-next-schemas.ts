@@ -4,23 +4,54 @@ import { z } from "zod";
 export interface StudyNextAiContext {
   currentDate: string;
   timezone: string;
+  /** Learned habits, when there is enough history. */
+  habits?: {
+    usualStudyHours: number[];
+    /** How long tasks take relative to their estimate (1.3 = 30% longer). */
+    estimateRatio: number | null;
+  };
   subjects: {
     id: string;
     name: string;
+    confidence?: "WEAK" | "OK" | "STRONG" | null;
+    examDate?: string | null;
+    weeklyGoalMinutes?: number | null;
     minutesLast7Days: number;
     daysSinceLastStudied: number | null;
     latestRating: "STRUGGLED" | "OK" | "GOT_IT" | null;
+    /** Typical focus length learned from timer sessions, if known. */
+    typicalMinutes?: number | null;
+    /** Next review date from the memory model (YYYY-MM-DD), if studied before. */
+    nextReviewOn?: string | null;
+    topics?: {
+      id: string;
+      name: string;
+      daysSinceStudied: number | null;
+      lastRating: "STRUGGLED" | "OK" | "GOT_IT" | null;
+      nextReviewOn: string | null;
+      dueForReview: boolean;
+    }[];
     openTasks: { id: string; title: string; deadline: string | null; estimatedMinutes: number | null }[];
   }[];
 }
 
 export const studyNextAiOutputSchema = z.object({
   subjectId: z.string().describe("One of the subject ids from STUDY_DATA."),
+  topicId: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe("A topic id listed under that same subject, or null."),
   taskId: z
     .string()
     .nullable()
     .describe("An open task id listed under that same subject, or null for general review."),
   minutes: z.number().int().min(15).max(180).describe("Suggested session length in minutes."),
+  step: z
+    .string()
+    .min(1)
+    .max(160)
+    .describe("One concrete thing to do in this session, e.g. 'Redo the 5 hardest limit problems from week 3'."),
   reason: z.string().min(1).max(300).describe("One or two short sentences addressed to the student."),
 });
 
@@ -28,7 +59,7 @@ export type StudyNextAiOutput = z.infer<typeof studyNextAiOutputSchema>;
 
 /**
  * The model may only point at data it was given: a listed subject and, if a
- * task, an open task of that same subject.
+ * topic or task, one listed under that same subject (tasks must be open).
  */
 export function validateStudyNext(
   output: StudyNextAiOutput,
@@ -36,6 +67,9 @@ export function validateStudyNext(
 ): { valid: boolean; reason?: string } {
   const subject = context.subjects.find((s) => s.id === output.subjectId);
   if (!subject) return { valid: false, reason: "Unknown subject" };
+  if (output.topicId !== null && !(subject.topics ?? []).some((t) => t.id === output.topicId)) {
+    return { valid: false, reason: "Topic is not part of that subject" };
+  }
   if (output.taskId !== null && !subject.openTasks.some((t) => t.id === output.taskId)) {
     return { valid: false, reason: "Task is not an open task of that subject" };
   }

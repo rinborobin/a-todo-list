@@ -131,8 +131,6 @@ function buildFreeWindowsByDay(
   const dates = getDatesInRange(startDate, endDate);
   const result = new Map<string, TimeWindow[]>();
 
-  const nowDateKey = toDateKey(now);
-
   for (const dateString of dates) {
     const dayOfWeek = getDayOfWeek(dateString, timezone);
     const blocks = availability.filter((a) => a.dayOfWeek === dayOfWeek);
@@ -147,15 +145,15 @@ function buildFreeWindowsByDay(
       windows = subtractWindow(windows, item);
     }
 
-    // Clip windows on the current day to not start before `now`.
-    if (dateString === nowDateKey) {
-      windows = windows
-        .map((w) => ({
-          start: w.start < now ? now : w.start,
-          end: w.end,
-        }))
-        .filter((w) => w.start < w.end);
-    }
+    // Never offer time that has already passed. Comparing instants (rather than
+    // UTC date keys) keeps this correct in every timezone and also drops
+    // earlier days in the range that are already over.
+    windows = windows
+      .map((w) => ({
+        start: w.start < now ? now : w.start,
+        end: w.end,
+      }))
+      .filter((w) => w.start < w.end);
 
     windows.sort((a, b) => a.start.getTime() - b.start.getTime());
     result.set(dateString, windows);

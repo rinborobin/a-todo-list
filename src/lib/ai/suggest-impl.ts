@@ -3,6 +3,7 @@ import type { AiPlanResult, AiPlanningContext } from "./schemas";
 import { aiPlanSuggestionSchema } from "./schemas";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts";
 import { validateAiSuggestion } from "./validate";
+import { toLocalDateKey, toLocalTimeString } from "@/lib/scheduling/timezone";
 import type { LanguageModel } from "ai";
 
 export async function suggestAiPlanOrdering(
@@ -52,8 +53,8 @@ function buildAiPlanInput(context: AiPlanningContext) {
   } = context;
 
   return {
-    currentDate: toDateString(now),
-    currentTime: toTimeString(now),
+    currentDate: toLocalDateKey(now, timezone),
+    currentTime: toLocalTimeString(now, timezone),
     timezone,
     dateRange: { start: startDate, end: endDate },
     tasks: tasks.map((task) => ({
@@ -84,15 +85,3 @@ function buildAiPlanInput(context: AiPlanningContext) {
   };
 }
 
-function toDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function toTimeString(date: Date): string {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}

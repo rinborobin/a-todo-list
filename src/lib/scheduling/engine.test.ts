@@ -197,6 +197,47 @@ describe("scheduleTasks", () => {
     assert.equal(result.scheduled[0]?.startTime.toISOString(), "2026-09-14T13:00:00.000Z");
     assert.equal(result.scheduled[0]?.endTime.toISOString(), "2026-09-14T14:00:00.000Z");
   });
+
+  it("does not schedule into hours already past today when the UTC date differs", () => {
+    // 20:00 Wednesday 2026-11-11 in Los Angeles is already Thursday 04:00 in UTC.
+    const task = makeTask({ id: "t1", estimatedMinutes: 60 });
+    const availability = [
+      makeAvailability({ id: "a1", dayOfWeek: "WEDNESDAY", startTime: "09:00:00", endTime: "23:00:00" }),
+    ];
+
+    const result = scheduleTasks(
+      baseInput({
+        tasks: [task],
+        availability,
+        timezone: "America/Los_Angeles",
+        startDate: "2026-11-11",
+        endDate: "2026-11-11",
+        now: new Date("2026-11-12T04:00:00Z"),
+      })
+    );
+
+    assert.equal(result.scheduled[0]?.startTime.toISOString(), "2026-11-12T04:00:00.000Z");
+  });
+
+  it("does not schedule into days in the range that are already over", () => {
+    const task = makeTask({ id: "t1", estimatedMinutes: 60 });
+    const availability = [
+      makeAvailability({ id: "a1", dayOfWeek: "MONDAY", startTime: "09:00:00", endTime: "17:00:00" }),
+      makeAvailability({ id: "a2", dayOfWeek: "TUESDAY", startTime: "09:00:00", endTime: "17:00:00" }),
+    ];
+
+    const result = scheduleTasks(
+      baseInput({
+        tasks: [task],
+        availability,
+        startDate: "2026-09-14",
+        endDate: "2026-09-15",
+        now: new Date("2026-09-15T08:00:00Z"),
+      })
+    );
+
+    assert.equal(result.scheduled[0]?.startTime.toISOString(), "2026-09-15T09:00:00.000Z");
+  });
 });
 
 describe("toDateKey", () => {

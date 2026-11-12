@@ -236,6 +236,34 @@ function toDateString(date: Date): string {
 }
 
 /**
+ * Returns the calendar date (YYYY-MM-DD) that `date` falls on in the supplied
+ * IANA timezone. Use this instead of UTC getters whenever a moment needs to be
+ * attributed to "the user's day".
+ */
+export function toLocalDateKey(date: Date, timezone: string): string {
+  const parts = formatParts(date, timezone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
+ * Returns the wall-clock time (HH:mm) of `date` in the supplied IANA timezone.
+ */
+export function toLocalTimeString(date: Date, timezone: string): string {
+  const { hour, minute } = formatParts(date, timezone);
+  // Some ICU versions render midnight as "24" with hour12: false.
+  return `${String(hour % 24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/**
+ * Adds whole days to a YYYY-MM-DD date string.
+ */
+export function addDaysToDateKey(dateString: string, days: number): string {
+  const date = parseLocalDate(dateString);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDateString(date);
+}
+
+/**
  * Checks whether two time windows overlap.
  */
 export function windowsOverlap(a: TimeWindow, b: TimeWindow): boolean {

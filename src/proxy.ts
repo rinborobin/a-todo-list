@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/today", "/tasks", "/week", "/progress", "/focus", "/me", "/dashboard", "/planner", "/availability"];
+const PROTECTED_PREFIXES = ["/today", "/tasks", "/week", "/progress", "/focus", "/setup", "/me", "/dashboard", "/planner", "/availability"];
 const AUTH_PAGES = ["/login", "/register"];
 
 /**
@@ -39,6 +39,7 @@ export const config = {
     "/week/:path*",
     "/progress/:path*",
     "/focus/:path*",
+    "/setup/:path*",
     "/me/:path*",
     "/dashboard/:path*",
     "/planner/:path*",

@@ -4,6 +4,7 @@ import { AvailabilityManager } from "@/components/availability/availability-mana
 import { SignOutButton } from "@/components/shell/sign-out-button";
 import { listSubjectsQuery } from "@/actions/study";
 import { SubjectsManager } from "@/components/study/subjects-manager";
+import { toLocalDateKey } from "@/lib/scheduling/timezone";
 
 export const metadata = {
   title: "Me",
@@ -29,7 +30,7 @@ export default async function MePage() {
       </div>
 
       <div className="mt-10">
-        <SubjectsManager initialSubjects={subjects} />
+        <SubjectsManager initialSubjects={subjects} today={toLocalDateKey(new Date(), timezone)} />
       </div>
 
       <section aria-labelledby="account-heading" className="mt-10">

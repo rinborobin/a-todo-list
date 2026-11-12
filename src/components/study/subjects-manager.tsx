@@ -6,16 +6,18 @@ import type { Subject } from "@/db/schema";
 import { archiveSubjectAction, createSubjectAction, renameSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
-import { PlusIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
+import { SubjectSetupFields, describeSetup } from "./subject-setup-fields";
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
-export function SubjectsManager({ initialSubjects }: { initialSubjects: Subject[] }) {
+export function SubjectsManager({ initialSubjects, today }: { initialSubjects: Subject[]; today: string }) {
   const router = useRouter();
   const [subjects, setSubjects] = useState(initialSubjects);
   const [newName, setNewName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -107,18 +109,43 @@ export function SubjectsManager({ initialSubjects }: { initialSubjects: Subject[
                 </form>
               </li>
             ) : (
-              <li key={s.id} className="flex items-center gap-2 py-1.5">
-                <button
-                  type="button"
-                  onClick={() => setEditing({ id: s.id, name: s.name })}
-                  aria-label={`Rename ${s.name}`}
-                  className="min-w-0 flex-1 truncate py-1.5 text-left text-[15px] font-medium hover:underline"
-                >
-                  {s.name}
-                </button>
-                <Button variant="ghost" size="sm" disabled={isPending} onClick={() => setArchived(s.id, true)}>
-                  Archive
-                </Button>
+              <li key={s.id} className="py-1.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(openId === s.id ? null : s.id)}
+                    aria-expanded={openId === s.id}
+                    className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+                  >
+                    <ChevronRightIcon
+                      className={`h-4 w-4 shrink-0 text-faint transition-transform ${openId === s.id ? "rotate-90" : ""}`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-medium">{s.name}</span>
+                      {describeSetup(s) && <span className="block text-[13px] text-muted">{describeSetup(s)}</span>}
+                    </span>
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => setEditing({ id: s.id, name: s.name })}>
+                    Rename
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isPending} onClick={() => setArchived(s.id, true)}>
+                    Archive
+                  </Button>
+                </div>
+                {openId === s.id && (
+                  <div className="rise pb-3 pl-6 pt-2">
+                    <SubjectSetupFields
+                      subject={{
+                        id: s.id,
+                        name: s.name,
+                        confidence: s.confidence,
+                        examDate: s.examDate,
+                        weeklyGoalMinutes: s.weeklyGoalMinutes,
+                      }}
+                      today={today}
+                    />
+                  </div>
+                )}
               </li>
             )
           )}

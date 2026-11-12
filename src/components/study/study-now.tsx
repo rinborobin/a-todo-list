@@ -127,12 +127,13 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
 
   if (subjects.length === 0) {
     return (
-      <p className="text-sm text-muted">
-        <Link href="/me" className="font-medium text-ink underline-offset-4 hover:underline">
-          Add your subjects
-        </Link>{" "}
-        to track study time and get suggestions on what to study next.
-      </p>
+      <section aria-label="Set up studying" className="border-l-2 border-ink pl-4">
+        <p className="text-[15px]">Tell the app what you are studying.</p>
+        <p className="text-[13px] text-muted">It learns from your sessions and suggests what to study next.</p>
+        <Link href="/setup" className={`${buttonClasses("primary", "sm")} mt-3`}>
+          Set up subjects
+        </Link>
+      </section>
     );
   }
 

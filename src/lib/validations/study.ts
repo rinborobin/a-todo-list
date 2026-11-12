@@ -43,3 +43,18 @@ export const rateSessionSchema = z.object({
 
 export type CreateSubjectInput = z.input<typeof createSubjectSchema>;
 export type LogStudySessionInput = z.input<typeof logStudySessionSchema>;
+
+export const SubjectConfidence = z.enum(["WEAK", "OK", "STRONG"]);
+
+export const subjectSetupSchema = z.object({
+  id: z.string().min(1),
+  confidence: SubjectConfidence.nullable().optional(),
+  examDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date")
+    .nullable()
+    .optional(),
+  weeklyGoalMinutes: z.number().int().min(0).max(2400, "At most 40 hours a week").nullable().optional(),
+});
+
+export type SubjectSetupInput = z.input<typeof subjectSetupSchema>;

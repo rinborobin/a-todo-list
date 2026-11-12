@@ -15,6 +15,7 @@ import {
   renameSubjectSchema,
   setGoalSchema,
   startTimerSchema,
+  subjectSetupSchema,
 } from "@/lib/validations/study";
 import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
@@ -38,6 +39,7 @@ function revalidateStudyViews() {
   revalidatePath("/tasks");
   revalidatePath("/me");
   revalidatePath("/focus");
+  revalidatePath("/setup");
 }
 
 async function userTimezone(userId: string): Promise<string> {
@@ -90,6 +92,35 @@ export async function renameSubjectAction(input: unknown): Promise<ActionResult<
   } catch (err) {
     if (isUniqueViolation(err)) return { success: false, error: "You already have a subject with that name" };
     return { success: false, error: safeErrorMessage(err, "Could not rename the subject") };
+  }
+}
+
+/**
+ * Saves what the student told us about a subject during setup: confidence,
+ * exam date and weekly goal. Only the fields that are sent are changed.
+ */
+export async function updateSubjectSetupAction(input: unknown): Promise<ActionResult<Subject>> {
+  try {
+    const session = await requireAuth();
+    const parsed = subjectSetupSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
+    const { id, ...fields } = parsed.data;
+
+    const changes: Partial<typeof subject.$inferInsert> = { updatedAt: new Date() };
+    if (fields.confidence !== undefined) changes.confidence = fields.confidence;
+    if (fields.examDate !== undefined) changes.examDate = fields.examDate;
+    if (fields.weeklyGoalMinutes !== undefined) changes.weeklyGoalMinutes = fields.weeklyGoalMinutes;
+
+    const [updated] = await db
+      .update(subject)
+      .set(changes)
+      .where(and(eq(subject.id, id), eq(subject.userId, session.user.id)))
+      .returning();
+    if (!updated) return { success: false, error: "Subject not found" };
+    revalidateStudyViews();
+    return { success: true, data: updated };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not save the subject") };
   }
 }
 

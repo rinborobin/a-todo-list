@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { subject, task } from "@/db/schema";
+import { UserFacingError } from "@/lib/error";
 
 /**
  * Returns the subject id if it belongs to the user, null when none was given.
@@ -14,7 +15,7 @@ export async function ownSubjectId(userId: string, subjectId: string | null | un
     where: and(eq(subject.id, subjectId), eq(subject.userId, userId)),
     columns: { id: true },
   });
-  if (!found) throw new Error("Subject not found");
+  if (!found) throw new UserFacingError("Subject not found");
   return found.id;
 }
 
@@ -28,6 +29,6 @@ export async function ownTask(
     where: and(eq(task.id, taskId), eq(task.userId, userId)),
     columns: { id: true, subjectId: true },
   });
-  if (!found) throw new Error("Task not found");
+  if (!found) throw new UserFacingError("Task not found");
   return found;
 }

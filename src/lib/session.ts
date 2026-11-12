@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { UserFacingError } from "@/lib/error";
 
 /**
  * Retrieves the current session on the server side using the incoming request headers.
@@ -40,6 +41,6 @@ export async function requireAuth(returnUrl?: string) {
  */
 export function assertUserOwnership(resourceUserId: string, currentUserId: string): void {
   if (!resourceUserId || !currentUserId || resourceUserId !== currentUserId) {
-    throw new Error("Forbidden: You do not have permission to access this resource.");
+    throw new UserFacingError("You do not have access to this.");
   }
 }

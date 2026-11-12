@@ -5,6 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { availability, user, type Availability, type DayOfWeek } from "@/db/schema";
 import { requireAuth, assertUserOwnership } from "@/lib/session";
+import { safeErrorMessage } from "@/lib/error";
 import {
   createAvailabilitySchema,
   updateAvailabilitySchema,
@@ -18,16 +19,6 @@ export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
 
-function safeErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error) {
-    const message = err.message.toLowerCase();
-    if (message.includes("connection") || message.includes("timeout") || message.includes("database")) {
-      return fallback;
-    }
-    return err.message;
-  }
-  return fallback;
-}
 
 function normalizeTime(value: string): string {
   // PostgreSQL time may be returned as "HH:mm:ss"; normalize to "HH:mm" for display/comparison.

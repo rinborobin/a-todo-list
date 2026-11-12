@@ -5,6 +5,7 @@ import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/db";
 import { scheduleItem, task, type Task } from "@/db/schema";
 import { requireAuth, assertUserOwnership } from "@/lib/session";
+import { safeErrorMessage } from "@/lib/error";
 import { ownSubjectId } from "@/lib/study/ownership";
 import {
   createTaskSchema,
@@ -20,17 +21,6 @@ export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
 
-function safeErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error) {
-    // Never leak raw driver/database errors to the client.
-    const message = err.message.toLowerCase();
-    if (message.includes("connection") || message.includes("timeout") || message.includes("database")) {
-      return fallback;
-    }
-    return err.message;
-  }
-  return fallback;
-}
 
 /**
  * Creates a new task for the authenticated user.

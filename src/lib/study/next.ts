@@ -68,6 +68,11 @@ function daysUntil(today: string, date: string): number {
   return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS);
 }
 
+/** Tasks created by "Add to my plan" ("Review: …" / "Study: …"). */
+function isCoachTask(title: string) {
+  return title.startsWith("Review: ") || title.startsWith("Study: ");
+}
+
 function lowerFirstWord(label: string) {
   return label.replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase());
 }
@@ -96,10 +101,11 @@ export function rankStudyNext({ subjects, topics = [], openTasks, sessions, now,
       const reasons: { weight: number; text: string }[] = [];
       const say = (weight: number, text: string) => reasons.push({ weight, text });
 
-      // Tasks: overdue or due soon
+      // Tasks: overdue or due soon. Review blocks created by "Add to my plan"
+      // stand for the review itself, which the memory model already counts.
       const tasks = openTasks.filter((t) => t.subjectId === subject.id);
       const withDeadline = tasks
-        .filter((t) => t.deadline)
+        .filter((t) => t.deadline && !isCoachTask(t.title))
         .sort((a, b) => a.deadline!.getTime() - b.deadline!.getTime());
       const urgentTask = withDeadline[0] ?? null;
       if (urgentTask?.deadline) {

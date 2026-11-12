@@ -134,12 +134,6 @@ export function SubjectsManager({
                       {describeSetup(s) && <span className="block text-[13px] text-muted">{describeSetup(s)}</span>}
                     </span>
                   </button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditing({ id: s.id, name: s.name })}>
-                    Rename
-                  </Button>
-                  <Button variant="ghost" size="sm" disabled={isPending} onClick={() => setArchived(s.id, true)}>
-                    Archive
-                  </Button>
                 </div>
                 {openId === s.id && (
                   <div className="rise pb-3 pl-6 pt-2">
@@ -155,6 +149,14 @@ export function SubjectsManager({
                     />
                     <div className="mt-5">
                       <TopicList topics={topics.filter((t) => t.subjectId === s.id)} />
+                    </div>
+                    <div className="mt-4 flex gap-1 border-t border-line pt-3">
+                      <Button variant="ghost" size="sm" className="-ml-3" onClick={() => setEditing({ id: s.id, name: s.name })}>
+                        Rename subject
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={isPending} onClick={() => setArchived(s.id, true)}>
+                        Archive subject
+                      </Button>
                     </div>
                   </div>
                 )}

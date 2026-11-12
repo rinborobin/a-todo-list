@@ -168,7 +168,7 @@ export function ProgressView(props: ProgressViewProps) {
           </section>
         </div>
 
-        <aside className="space-y-4 lg:order-none" aria-label="What to study next">
+        <aside className="order-first space-y-4 lg:order-none" aria-label="What to study next">
           <StudyNow
             suggestion={ai?.suggestion ?? props.suggestion}
             running={props.running}

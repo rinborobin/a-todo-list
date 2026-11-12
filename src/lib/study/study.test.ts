@@ -277,3 +277,23 @@ describe("rankStudyNext v2: learning", () => {
     assert.equal(ranked[0].topicId, null);
   });
 });
+
+describe("rankStudyNext v2: coach-created review tasks", () => {
+  it("does not repeat a planned review task as a separate deadline reason", () => {
+    const ranked = rankStudyNext({
+      now,
+      timezone: "UTC",
+      subjects: [subjects[0]],
+      topics: [{ id: "limits", name: "Limits", subjectId: "calc", archivedAt: null }],
+      openTasks: [
+        task({ id: "rev", subjectId: "calc", title: "Review: Calculus · Limits", deadline: new Date(now.getTime() + 20 * H) }),
+      ],
+      sessions: [
+        session({ subjectId: "calc", topicId: "limits", minutes: 40, startedAt: new Date(now.getTime() - 5 * D), rating: "STRUGGLED" }),
+      ],
+    });
+    assert.equal(ranked[0].topicId, "limits");
+    assert.doesNotMatch(ranked[0].reason, /Review:/);
+    assert.match(ranked[0].reason, /Limits due for review/);
+  });
+});

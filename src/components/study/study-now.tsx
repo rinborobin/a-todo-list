@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { discardStudyTimerAction, startStudyTimerAction, stopStudyTimerAction } from "@/actions/study";
+import { startStudyTimerAction, stopStudyTimerAction } from "@/actions/study";
 import type { StudyNextSuggestion } from "@/lib/study/next";
+import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { formatDuration } from "@/lib/format";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { RatingPicker } from "./rating-picker";
 import { useMinuteClock } from "./use-minute-clock";
 
@@ -36,22 +37,35 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [finished, setFinished] = useState<{ sessionId: string; minutes: number; note: string | null } | null>(null);
+  // Origin of the shade that floods the screen when Start is tapped.
+  const [flood, setFlood] = useState<{ x: number; y: number } | null>(null);
 
-  const run = (action: () => Promise<{ success: boolean; error?: string }>, after?: () => void) => {
+  /**
+   * Starts the timer and opens the focus screen. The flood animation and the
+   * save run at the same time, so the focus screen is ready as the shade
+   * covers the page; if saving fails the shade lifts and the error shows.
+   */
+  const start = (subjectId: string | null, taskId: string | null, plannedMinutes: number, origin?: HTMLElement | null) => {
     setError(null);
+    setFinished(null);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (origin && !reduceMotion) {
+      const rect = origin.getBoundingClientRect();
+      setFlood({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+    }
     startTransition(async () => {
-      const result = await action();
+      const [result] = await Promise.all([
+        startStudyTimerAction({ subjectId, taskId, plannedMinutes }),
+        new Promise((resolve) => setTimeout(resolve, reduceMotion ? 0 : 520)),
+      ]);
       if (!result.success) {
-        setError(result.error ?? "Something went wrong");
+        setFlood(null);
+        setError(result.error);
         return;
       }
-      after?.();
-      router.refresh();
+      router.push(reduceMotion ? "/focus" : "/focus?from=start");
     });
   };
-
-  const start = (subjectId: string | null, taskId: string | null) =>
-    run(() => startStudyTimerAction({ subjectId, taskId }), () => setFinished(null));
 
   const stop = () => {
     setError(null);
@@ -87,11 +101,11 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
           {running.taskTitle && <span className="text-sm text-muted">{running.taskTitle}</span>}
         </p>
         <div className="mt-3 flex gap-2">
-          <Button variant="primary" size="sm" onClick={stop} disabled={isPending}>
+          <Link href="/focus" className={buttonClasses("primary", "sm")}>
+            Open timer
+          </Link>
+          <Button variant="ghost" size="sm" onClick={stop} disabled={isPending}>
             {isPending ? "Saving…" : "Stop"}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => run(discardStudyTimerAction)} disabled={isPending}>
-            Discard
           </Button>
         </div>
         {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
@@ -124,6 +138,13 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
 
   return (
     <section aria-label="Study next" className="border-l-2 border-ink pl-4">
+      {flood && (
+        <div
+          className="focus-flood-in fixed inset-0 z-50 bg-ink"
+          style={{ "--x": `${flood.x}px`, "--y": `${flood.y}px` } as React.CSSProperties}
+          aria-hidden="true"
+        />
+      )}
       <p className={label}>Study next</p>
       {suggestion ? (
         <>
@@ -144,7 +165,7 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
             variant="primary"
             size="sm"
             disabled={isPending}
-            onClick={() => start(suggestion.subjectId, suggestion.taskId)}
+            onClick={(e) => start(suggestion.subjectId, suggestion.taskId, defaultGoalMinutes(suggestion.minutes), e.currentTarget)}
           >
             {isPending ? "Starting…" : "Start"}
           </Button>
@@ -156,7 +177,7 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
           id="study-other"
           value=""
           disabled={isPending}
-          onChange={(e) => e.target.value && start(e.target.value, null)}
+          onChange={(e) => e.target.value && start(e.target.value, null, defaultGoalMinutes(null), e.currentTarget)}
           className="h-8 cursor-pointer rounded-lg bg-transparent px-1 text-[13px] text-muted hover:text-ink focus:outline-none"
         >
           <option value="">{suggestion ? "or something else…" : "Choose a subject…"}</option>

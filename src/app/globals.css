@@ -90,3 +90,91 @@ dialog::backdrop {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------- focus screen */
+
+/* Registered so the sundial shade can transition smoothly between seconds. */
+@property --left {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+/* Lit part of the dial and the shade over the time left. Dark mode gets its
+   own pair so the shade still reads against a dark page. */
+:root {
+  --sundial-lit: #fffdf8;
+  --shade: rgb(28 25 23 / 0.88);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sundial {
+    transition: --left 1s linear;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sundial-lit: #4a4339;
+    --shade: rgb(10 9 8 / 0.82);
+  }
+}
+
+.sundial-shade {
+  background: conic-gradient(
+    from calc((1 - var(--left)) * 360deg),
+    var(--shade) 0 calc(var(--left) * 360deg),
+    transparent 0
+  );
+}
+
+/* The "now" hand: the shade edge plus a dot on the rim. Fades out once the
+   goal is reached and the dial is fully lit. */
+.sundial-hand {
+  transform: rotate(calc((1 - var(--left)) * 360deg));
+  opacity: min(1, calc(var(--left) * 40));
+}
+
+/* Rolling digits: count up rolls upward, count down rolls downward. */
+.digit-in-up { animation: digit-in-up 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.digit-out-up { animation: digit-out-up 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.digit-in-down { animation: digit-in-down 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.digit-out-down { animation: digit-out-down 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+@keyframes digit-in-up { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes digit-out-up { from { transform: none; opacity: 1; } to { transform: translateY(-100%); opacity: 0; } }
+@keyframes digit-in-down { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes digit-out-down { from { transform: none; opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+
+/* Start: the screen floods with shade from the Start button, then lifts. */
+.focus-flood-in {
+  clip-path: circle(0 at var(--x, 50%) var(--y, 50%));
+  animation: focus-flood-in 0.55s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+}
+.focus-flood-out { animation: focus-flood-out 0.5s 0.05s ease forwards; }
+@keyframes focus-flood-in { to { clip-path: circle(150% at var(--x, 50%) var(--y, 50%)); } }
+@keyframes focus-flood-out { to { opacity: 0; visibility: hidden; } }
+
+.focus-settle { animation: focus-settle 0.6s 0.15s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes focus-settle { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+/* Goal reached: the orange edge pulses once. */
+.goal-pulse { animation: goal-pulse 1.2s ease-out 1; }
+@keyframes goal-pulse {
+  0% { box-shadow: 0 0 0 0 rgb(194 65 12 / 0.45); }
+  100% { box-shadow: 0 0 0 22px rgb(194 65 12 / 0); }
+}
+
+/* Finish: check pops in and draws, details rise. */
+.check-pop { transform-origin: center; animation: check-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.check-draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: check-draw 0.45s 0.2s ease-out forwards; }
+.rise { animation: rise 0.4s ease-out both; }
+@keyframes check-pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes check-draw { to { stroke-dashoffset: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .digit-in-up, .digit-in-down, .focus-settle, .goal-pulse, .check-pop, .rise { animation: none; }
+  .digit-out-up, .digit-out-down { display: none; }
+  .check-draw { animation: none; stroke-dashoffset: 0; }
+  .focus-flood-in, .focus-flood-out { display: none; }
+}

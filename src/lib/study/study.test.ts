@@ -179,3 +179,101 @@ describe("rankStudyNext", () => {
     assert.match(ranked[0]?.reason ?? "", /quiz is overdue/);
   });
 });
+
+describe("rankStudyNext v2: learning", () => {
+  const base = { now, timezone: "UTC" };
+  const daysAgo = (n: number) => new Date(now.getTime() - n * D);
+
+  it("for a brand-new user with only subjects, puts weak subjects first", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [
+        { id: "calc", name: "Calculus", archivedAt: null, confidence: "STRONG" },
+        { id: "db", name: "Databases", archivedAt: null, confidence: "WEAK" },
+        { id: "os", name: "Operating Systems", archivedAt: null, confidence: "OK" },
+      ],
+      openTasks: [],
+      sessions: [],
+    });
+    assert.deepEqual(ranked.map((r) => r.subjectId), ["db", "os", "calc"]);
+    assert.match(ranked[0].reason, /weak/);
+  });
+
+  it("suggests the topic that is due for review, inside the subject", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: subjects.slice(0, 2),
+      topics: [
+        { id: "limits", name: "Limits", subjectId: "calc", archivedAt: null },
+        { id: "series", name: "Series", subjectId: "calc", archivedAt: null },
+        { id: "joins", name: "Joins", subjectId: "db", archivedAt: null },
+      ],
+      openTasks: [],
+      sessions: [
+        session({ subjectId: "calc", topicId: "limits", minutes: 40, startedAt: daysAgo(5), rating: "STRUGGLED" }),
+        session({ subjectId: "calc", topicId: "series", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" }),
+        session({ subjectId: "db", topicId: "joins", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" }),
+      ],
+    });
+    assert.equal(ranked[0].subjectId, "calc");
+    assert.equal(ranked[0].topicId, "limits");
+    assert.equal(ranked[0].topicName, "Limits");
+    assert.match(ranked[0].reason, /Limits due for review/);
+  });
+
+  it("ramps up a subject as its exam gets close", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [
+        { id: "calc", name: "Calculus", archivedAt: null },
+        { id: "os", name: "Operating Systems", archivedAt: null, examDate: "2026-11-15" },
+      ],
+      openTasks: [],
+      sessions: [
+        session({ subjectId: "calc", minutes: 60, startedAt: daysAgo(6) }),
+        session({ subjectId: "os", minutes: 60, startedAt: daysAgo(1), rating: "GOT_IT" }),
+      ],
+    });
+    assert.equal(ranked[0].subjectId, "os");
+    assert.match(ranked[0].reason, /exam in 3 days/);
+  });
+
+  it("raises a subject that is behind its weekly goal", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [
+        { id: "calc", name: "Calculus", archivedAt: null, weeklyGoalMinutes: 240 },
+        { id: "db", name: "Databases", archivedAt: null, weeklyGoalMinutes: 60 },
+      ],
+      openTasks: [],
+      sessions: [
+        session({ subjectId: "calc", minutes: 30, startedAt: daysAgo(1), rating: "GOT_IT" }),
+        session({ subjectId: "db", minutes: 60, startedAt: daysAgo(1), rating: "GOT_IT" }),
+      ],
+    });
+    assert.equal(ranked[0].subjectId, "calc");
+    assert.match(ranked[0].reason, /30m of 4h this week/);
+  });
+
+  it("uses the learned session length when there is enough timer history", () => {
+    const timer = (n: number) => session({ subjectId: "calc", minutes: 45, startedAt: daysAgo(n), source: "TIMER" });
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [subjects[0]],
+      openTasks: [task({ id: "ps4", subjectId: "calc", estimatedMinutes: 120 })],
+      sessions: [timer(2), timer(4), timer(6)],
+    });
+    assert.equal(ranked[0].minutes, 45);
+  });
+
+  it("ignores archived topics", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [subjects[0]],
+      topics: [{ id: "old", name: "Old topic", subjectId: "calc", archivedAt: new Date() }],
+      openTasks: [],
+      sessions: [session({ subjectId: "calc", topicId: "old", minutes: 30, startedAt: daysAgo(9), rating: "STRUGGLED" })],
+    });
+    assert.equal(ranked[0].topicId, null);
+  });
+});

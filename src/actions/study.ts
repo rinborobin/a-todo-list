@@ -453,8 +453,11 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
         suggestion: {
           subjectId: subjectRow.id,
           subjectName: subjectRow.name,
+          topicId: null,
+          topicName: null,
           taskId: taskRow?.id ?? null,
           taskTitle: taskRow?.title ?? null,
+          reviewOn: null,
           minutes: ai.minutes,
           reason: ai.reason,
           score: 0,

@@ -1,11 +1,13 @@
-import type { StudyRating } from "@/db/schema";
+import type { StudyRating, StudySource } from "@/db/schema";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
 
 export interface SessionLike {
   subjectId: string | null;
+  topicId?: string | null;
   startedAt: Date;
   minutes: number;
   rating: StudyRating | null;
+  source?: StudySource;
 }
 
 export interface SubjectStat {

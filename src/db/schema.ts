@@ -111,6 +111,8 @@ export const availability = pgTable(
   ]
 );
 
+export const subjectConfidenceEnum = pgEnum("subject_confidence", ["WEAK", "OK", "STRONG"]);
+
 export const subject = pgTable(
   "subject",
   {
@@ -121,12 +123,46 @@ export const subject = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    // Set during setup; seeds suggestions before there is study history.
+    confidence: subjectConfidenceEnum("confidence"),
+    examDate: date("exam_date"),
+    weeklyGoalMinutes: integer("weekly_goal_minutes"),
     // Subjects are archived rather than deleted so study history keeps its label.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("subject_user_name_idx").on(table.userId, sql`lower(${table.name})`)]
+  (table) => [
+    uniqueIndex("subject_user_name_idx").on(table.userId, sql`lower(${table.name})`),
+    check(
+      "subject_weekly_goal_range",
+      sql`${table.weeklyGoalMinutes} is null or (${table.weeklyGoalMinutes} >= 0 and ${table.weeklyGoalMinutes} <= 2400)`
+    ),
+  ]
+);
+
+/** A part of a subject ("Limits" in Calculus); has its own review schedule. */
+export const topic = pgTable(
+  "topic",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id")
+      .notNull()
+      .references(() => subject.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("topic_user_idx").on(table.userId),
+    uniqueIndex("topic_subject_name_idx").on(table.subjectId, sql`lower(${table.name})`),
+  ]
 );
 
 export const task = pgTable(
@@ -221,6 +257,7 @@ export const studySession = pgTable(
     taskId: text("task_id").references(() => task.id, { onDelete: "set null" }),
     // Set for sessions logged by ticking a planned block; unique so a block logs once.
     scheduleItemId: text("schedule_item_id").references(() => scheduleItem.id, { onDelete: "set null" }),
+    topicId: text("topic_id").references(() => topic.id, { onDelete: "set null" }),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     // Null while a timer is running.
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -270,3 +307,5 @@ export type Subject = typeof subject.$inferSelect;
 export type StudySession = typeof studySession.$inferSelect;
 export type StudySource = (typeof studySourceEnum.enumValues)[number];
 export type StudyRating = (typeof studyRatingEnum.enumValues)[number];
+export type Topic = typeof topic.$inferSelect;
+export type SubjectConfidence = (typeof subjectConfidenceEnum.enumValues)[number];

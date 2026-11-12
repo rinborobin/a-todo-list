@@ -554,6 +554,11 @@ export async function getPlansForRangeQuery(
   try {
     const session = await requireAuth();
     const userId = session.user.id;
+    // Same rules as planning: valid YYYY-MM-DD dates, in order, at most 30 days.
+    const range = generatePlanSchema.safeParse({ startDate, endDate });
+    if (!range.success) {
+      return { success: false, error: range.error.issues[0]?.message ?? "Invalid date range" };
+    }
 
     const plans = await db.query.dailyPlan.findMany({
       where: and(

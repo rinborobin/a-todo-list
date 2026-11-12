@@ -6,8 +6,11 @@ import * as schema from "@/db/schema";
 import { env } from "@/lib/env";
 import { SIGNUP_CLOSED, isEmailAllowed, parseAllowedEmails } from "@/lib/allowed-emails";
 
-// When ALLOWED_EMAILS is set, only those addresses can create an account
-// (by email or Google). Existing accounts keep signing in normally.
+const isProduction = process.env.NODE_ENV === "production";
+
+// Only addresses in ALLOWED_EMAILS can create an account (by email or Google).
+// In production a missing or empty list closes sign-up entirely. Existing
+// accounts keep signing in normally.
 const allowedEmails = parseAllowedEmails(process.env.ALLOWED_EMAILS);
 
 export const auth = betterAuth({
@@ -19,7 +22,7 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   // Development only: accept sign-ins from another device on the LAN.
   trustedOrigins:
-    process.env.NODE_ENV !== "production" && process.env.DEV_NETWORK_ORIGIN
+    !isProduction && process.env.DEV_NETWORK_ORIGIN
       ? [process.env.DEV_NETWORK_ORIGIN]
       : [],
   emailAndPassword: {
@@ -28,9 +31,21 @@ export const auth = betterAuth({
   user: {
     validateUserInfo: ({ user, source }) => {
       if (source.action !== "create-user") return;
-      if (!isEmailAllowed(typeof user.email === "string" ? user.email : null, allowedEmails)) {
+      const email = typeof user.email === "string" ? user.email : null;
+      if (!isEmailAllowed(email, allowedEmails, { production: isProduction })) {
         return { error: SIGNUP_CLOSED, errorDescription: "Sign-ups are closed for this planner." };
       }
+    },
+  },
+  // Rate limits (on in production) are counted in the database so they hold
+  // across serverless instances; in memory each instance would count alone.
+  rateLimit: {
+    storage: "database",
+  },
+  advanced: {
+    ipAddress: {
+      // Set by Vercel and not spoofable by clients; x-forwarded-for elsewhere.
+      ipAddressHeaders: ["x-vercel-forwarded-for", "x-forwarded-for"],
     },
   },
   // OAuth failures (including a closed sign-up) land back on the login page.

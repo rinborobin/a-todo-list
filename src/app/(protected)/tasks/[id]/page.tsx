@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
-import { requireAuth } from "@/lib/session";
 import { getTaskByIdAction } from "@/actions/tasks";
+import { getUserTimezoneQuery } from "@/actions/availability";
 import { TaskDetailPageClient } from "@/components/tasks/task-detail-page-client";
 
 export const metadata = {
-  title: "Task Details",
-  description: "View task details",
+  title: "Task",
 };
 
 interface TaskDetailPageProps {
@@ -13,13 +12,12 @@ interface TaskDetailPageProps {
 }
 
 export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
-  await requireAuth();
   const { id } = await params;
-  const result = await getTaskByIdAction(id);
+  const [result, timezone] = await Promise.all([getTaskByIdAction(id), getUserTimezoneQuery()]);
 
   if (!result.success) {
     notFound();
   }
 
-  return <TaskDetailPageClient task={result.data} />;
+  return <TaskDetailPageClient task={result.data} timezone={timezone} now={new Date()} />;
 }

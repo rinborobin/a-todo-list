@@ -1,8 +1,7 @@
 "use client";
 
 import type { Availability, DayOfWeek } from "@/db/schema";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
-import { AvailabilityBlock } from "./availability-block";
+import { PlusIcon } from "@/components/ui/icons";
 
 interface AvailabilityDayProps {
   label: string;
@@ -10,66 +9,52 @@ interface AvailabilityDayProps {
   blocks: Availability[];
   onAdd: (dayOfWeek: DayOfWeek) => void;
   onEdit: (block: Availability) => void;
-  onDelete: (id: string) => void;
-  onClearDay: (dayOfWeek: DayOfWeek) => void;
 }
 
-export function AvailabilityDay({
-  label,
-  dayOfWeek,
-  blocks,
-  onAdd,
-  onEdit,
-  onDelete,
-  onClearDay,
-}: AvailabilityDayProps) {
-  const isAvailable = blocks.length > 0;
+const hhmm = (value: string) => value.slice(0, 5);
+
+function totalMinutes(blocks: Availability[]) {
+  return blocks.reduce((sum, b) => {
+    const [sh, sm] = hhmm(b.startTime).split(":").map(Number);
+    const [eh, em] = hhmm(b.endTime).split(":").map(Number);
+    return sum + (eh * 60 + em) - (sh * 60 + sm);
+  }, 0);
+}
+
+export function AvailabilityDay({ label, dayOfWeek, blocks, onAdd, onEdit }: AvailabilityDayProps) {
+  const minutes = totalMinutes(blocks);
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-center justify-between gap-3 sm:justify-start">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{label}</h3>
-          <span
-            className={`text-xs ${
-              isAvailable ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"
-            }`}
-          >
-            {isAvailable ? "Available" : "Unavailable"}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onAdd(dayOfWeek)}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-            Add block
-          </button>
-          {isAvailable && (
-            <button
-              type="button"
-              onClick={() => onClearDay(dayOfWeek)}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
-            >
-              <TrashIcon className="h-3.5 w-3.5" />
-              Clear
-            </button>
-          )}
-        </div>
+    <li className="flex items-start gap-3 py-3">
+      <div className="w-24 shrink-0 pt-1.5 sm:w-28">
+        <p className="text-[15px] font-medium">{label}</p>
+        <p className="text-xs text-muted">
+          {minutes > 0 ? `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""} free` : "Not free"}
+        </p>
       </div>
 
-      {isAvailable ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {blocks.map((block) => (
-            <AvailabilityBlock key={block.id} block={block} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No availability set.</p>
-      )}
-    </div>
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+        {blocks.map((block) => (
+          <button
+            key={block.id}
+            type="button"
+            onClick={() => onEdit(block)}
+            aria-label={`Edit ${label} ${hhmm(block.startTime)} to ${hhmm(block.endTime)}`}
+            className="tabular h-9 rounded-lg bg-sheet px-3 text-sm shadow-[0_0_0_1px_var(--line-strong)] transition-colors hover:shadow-[0_0_0_1px_var(--ink)]"
+          >
+            {hhmm(block.startTime)}–{hhmm(block.endTime)}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => onAdd(dayOfWeek)}
+          aria-label={`Add free time on ${label}`}
+          className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm text-muted hover:bg-line/60 hover:text-ink"
+        >
+          <PlusIcon className="h-4 w-4" />
+          {blocks.length === 0 && "Add"}
+        </button>
+      </div>
+    </li>
   );
 }

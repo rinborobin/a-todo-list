@@ -12,6 +12,11 @@ export const auth = betterAuth({
   }),
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  // Development only: accept sign-ins from another device on the LAN.
+  trustedOrigins:
+    process.env.NODE_ENV !== "production" && process.env.DEV_NETWORK_ORIGIN
+      ? [process.env.DEV_NETWORK_ORIGIN]
+      : [],
   emailAndPassword: {
     enabled: true,
   },

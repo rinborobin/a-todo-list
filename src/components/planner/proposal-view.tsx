@@ -61,10 +61,10 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-medium text-zinc-900 dark:text-zinc-100">
+        <h2 className="text-base font-medium text-ink">
           Proposed tasks
         </h2>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-xs text-muted">
           {startDate} to {endDate}
         </p>
       </div>
@@ -72,7 +72,7 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
       {proposal.notes.length > 0 && (
         <div className="space-y-1">
           {proposal.notes.map((note, i) => (
-            <p key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p key={i} className="text-sm text-ink-soft">
               {note}
             </p>
           ))}
@@ -80,9 +80,9 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
       )}
 
       {proposal.warnings.length > 0 && (
-        <div className="flex gap-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3">
-          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <ul className="list-disc space-y-1 pl-4 text-sm text-amber-800 dark:text-amber-300">
+        <div className="flex gap-3 rounded-xl border border-transparent bg-accent-soft p-3">
+          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <ul className="list-disc space-y-1 pl-4 text-sm text-accent">
             {proposal.warnings.map((warning, i) => (
               <li key={i}>{warning}</li>
             ))}
@@ -112,13 +112,13 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
       </div>
 
       {items.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted">
           All proposed items were removed. Cancel to start over.
         </p>
       )}
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -126,7 +126,7 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
           type="button"
           onClick={handleConfirm}
           disabled={isConfirming || items.length === 0}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-4 h-11 text-sm font-medium text-paper hover:bg-ink-soft disabled:opacity-50 transition-colors cursor-pointer"
         >
           <CheckIcon className="h-4 w-4" />
           {isConfirming ? "Confirming..." : "Confirm and schedule"}
@@ -136,7 +136,7 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
           type="button"
           onClick={onCancel}
           disabled={isConfirming}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-line-strong bg-transparent px-4 h-11 text-sm font-medium text-ink-soft hover:bg-line/60 disabled:opacity-50 transition-colors cursor-pointer"
         >
           <CloseIcon className="h-4 w-4" />
           Cancel
@@ -154,19 +154,19 @@ interface ExistingItemRowProps {
 
 function ExistingItemRow({ item, index, onRemove }: ExistingItemRowProps) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-3">
+    <div className="flex items-start gap-3 rounded-xl border border-line bg-paper p-3">
       <div className="mt-0.5">
-        <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <CheckIcon className="h-4 w-4 text-ink" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+        <p className="text-sm font-medium text-ink truncate">
           {item.title ?? item.taskId}
         </p>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-xs text-muted">
           Existing task
         </p>
         {item.reason && (
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-xs text-muted">
             {item.reason}
           </p>
         )}
@@ -175,7 +175,7 @@ function ExistingItemRow({ item, index, onRemove }: ExistingItemRowProps) {
         type="button"
         onClick={() => onRemove(index)}
         aria-label="Remove proposed task"
-        className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors cursor-pointer"
+        className="rounded-lg p-1.5 text-faint hover:bg-line/60 hover:text-ink-soft transition-colors cursor-pointer"
       >
         <TrashIcon className="h-4 w-4" />
       </button>
@@ -192,17 +192,17 @@ interface NewItemRowProps {
 
 function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
   return (
-    <div className="space-y-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-3">
+    <div className="space-y-3 rounded-xl border border-line bg-paper p-3">
       <div className="flex items-start gap-3">
         <div className="mt-0.5">
-          <CheckIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <CheckIcon className="h-4 w-4 text-accent" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <p className="text-sm font-medium text-ink">
             New task
           </p>
           {item.reason && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="text-xs text-muted">
               {item.reason}
             </p>
           )}
@@ -211,7 +211,7 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
           type="button"
           onClick={() => onRemove(index)}
           aria-label="Remove proposed task"
-          className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors cursor-pointer"
+          className="rounded-lg p-1.5 text-faint hover:bg-line/60 hover:text-ink-soft transition-colors cursor-pointer"
         >
           <TrashIcon className="h-4 w-4" />
         </button>
@@ -219,7 +219,7 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
 
       <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="text-xs font-medium text-ink-soft">
             Title
           </label>
           <input
@@ -227,12 +227,12 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
             value={item.title}
             onChange={(e) => onUpdate(index, { title: e.target.value })}
             maxLength={200}
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            className="w-full rounded-lg border border-line-strong bg-sheet px-2.5 py-1.5 text-base sm:text-sm text-ink focus:border-ink focus:outline-none"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="text-xs font-medium text-ink-soft">
             Priority
           </label>
           <select
@@ -240,7 +240,7 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
             onChange={(e) =>
               onUpdate(index, { priority: e.target.value as NewProposalItem["priority"] })
             }
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 cursor-pointer"
+            className="w-full rounded-lg border border-line-strong bg-sheet px-2.5 py-1.5 text-base sm:text-sm text-ink focus:border-ink focus:outline-none cursor-pointer"
           >
             <option value="LOW">Low</option>
             <option value="MEDIUM">Medium</option>
@@ -250,7 +250,7 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="text-xs font-medium text-ink-soft">
             Estimated minutes
           </label>
           <input
@@ -259,12 +259,12 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
             onChange={(e) => onUpdate(index, { estimatedMinutes: Number(e.target.value) })}
             min={1}
             max={1440}
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            className="w-full rounded-lg border border-line-strong bg-sheet px-2.5 py-1.5 text-base sm:text-sm text-ink focus:border-ink focus:outline-none"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="text-xs font-medium text-ink-soft">
             Deadline
           </label>
           <input
@@ -273,13 +273,13 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
             onChange={(e) =>
               onUpdate(index, { deadline: e.target.value ? new Date(e.target.value).toISOString() : null })
             }
-            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            className="w-full rounded-lg border border-line-strong bg-sheet px-2.5 py-1.5 text-base sm:text-sm text-ink focus:border-ink focus:outline-none"
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="text-xs font-medium text-ink-soft">
           Description
         </label>
         <textarea
@@ -287,7 +287,7 @@ function NewItemRow({ item, index, onUpdate, onRemove }: NewItemRowProps) {
           onChange={(e) => onUpdate(index, { description: e.target.value || null })}
           rows={2}
           maxLength={2000}
-          className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 resize-y"
+          className="w-full rounded-lg border border-line-strong bg-sheet px-2.5 py-1.5 text-base sm:text-sm text-ink placeholder:text-faint focus:border-ink focus:outline-none resize-y"
         />
       </div>
     </div>

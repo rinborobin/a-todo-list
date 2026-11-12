@@ -6,12 +6,14 @@ import Link from "next/link";
 import { signUp } from "@/lib/auth-client";
 import { GoogleSignInButton } from "./oauth-button";
 import { registerSchema } from "@/lib/validations/auth";
+import { Button } from "@/components/ui/button";
+import { ErrorNote, Field, Input } from "@/components/ui/field";
 
 interface RegisterFormProps {
   callbackUrl?: string;
 }
 
-export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) {
+export function RegisterForm({ callbackUrl = "/today" }: RegisterFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,13 +33,7 @@ export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) 
     setError(null);
     setFieldErrors({});
 
-    // Client-side validation with Zod
-    const result = registerSchema.safeParse({
-      name,
-      email,
-      password,
-      confirmPassword,
-    });
+    const result = registerSchema.safeParse({ name, email, password, confirmPassword });
 
     if (!result.success) {
       const formatted = result.error.format();
@@ -53,14 +49,10 @@ export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) 
     setIsLoading(true);
 
     try {
-      const response = await signUp.email({
-        name,
-        email,
-        password,
-      });
+      const response = await signUp.email({ name, email, password });
 
       if (response.error) {
-        setError(response.error.message || "Failed to create account. Please try again.");
+        setError(response.error.message || "Could not create the account. Try again.");
         setIsLoading(false);
         return;
       }
@@ -68,97 +60,57 @@ export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) 
       router.push(callbackUrl);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred during registration");
+      setError(err instanceof Error ? err.message : "Could not create the account. Try again.");
       setIsLoading(false);
     }
   };
 
+  const loginHref = `/login${callbackUrl !== "/today" ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`;
+
   return (
-    <div className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 shadow-sm">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Create an account
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Get started with AI Daily Planner today
-        </p>
+    <div>
+      <h1 className="font-serif text-[32px] leading-tight">Create an account</h1>
+      <p className="mt-1 text-sm text-muted">Then set your free hours and add what is due.</p>
+
+      <div className="mt-8">
+        <GoogleSignInButton callbackUrl={callbackUrl} />
       </div>
 
-      <GoogleSignInButton callbackUrl={callbackUrl} />
-
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white dark:bg-zinc-900 px-2 text-zinc-500">Or register with email</span>
-        </div>
+      <div className="my-6 flex items-center gap-3 text-xs text-faint">
+        <span className="h-px flex-1 bg-line" />
+        or with email
+        <span className="h-px flex-1 bg-line" />
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900"
-        >
-          {error}
-        </div>
-      )}
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {error && <ErrorNote>{error}</ErrorNote>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label
-            htmlFor="name"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Full name
-          </label>
-          <input
+        <Field label="Name" htmlFor="name" error={fieldErrors.name}>
+          <Input
             id="name"
-            type="text"
             autoComplete="name"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="Jane Doe"
           />
-          {fieldErrors.name && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.name}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Email address
-          </label>
-          <input
+        <Field label="Email" htmlFor="email" error={fieldErrors.email}>
+          <Input
             id="email"
             type="email"
             autoComplete="email"
+            inputMode="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="you@example.com"
           />
-          {fieldErrors.email && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Password (min 8 characters)
-          </label>
-          <input
+        <Field label="Password" htmlFor="password" error={fieldErrors.password} hint="At least 8 characters.">
+          <Input
             id="password"
             type="password"
             autoComplete="new-password"
@@ -166,22 +118,11 @@ export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="••••••••"
           />
-          {fieldErrors.password && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="confirmPassword"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Confirm password
-          </label>
-          <input
+        <Field label="Confirm password" htmlFor="confirmPassword" error={fieldErrors.confirmPassword}>
+          <Input
             id="confirmPassword"
             type="password"
             autoComplete="new-password"
@@ -189,31 +130,17 @@ export function RegisterForm({ callbackUrl = "/dashboard" }: RegisterFormProps) 
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="••••••••"
           />
-          {fieldErrors.confirmPassword && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-              {fieldErrors.confirmPassword}
-            </p>
-          )}
-        </div>
+        </Field>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full rounded-lg bg-zinc-900 dark:bg-zinc-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-zinc-900 shadow hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 transition-colors cursor-pointer"
-        >
-          {isLoading ? "Creating account..." : "Create account"}
-        </button>
+        <Button type="submit" variant="primary" disabled={isLoading} className="w-full">
+          {isLoading ? "Creating account…" : "Create account"}
+        </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="mt-6 text-sm text-muted">
         Already have an account?{" "}
-        <Link
-          href={`/login${callbackUrl !== "/dashboard" ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`}
-          className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
-        >
+        <Link href={loginHref} className="font-medium text-ink underline-offset-4 hover:underline">
           Sign in
         </Link>
       </p>

@@ -1,113 +1,87 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { Task, TaskPriority, TaskStatus } from "@/db/schema";
-import {
-  createTaskAction,
-  updateTaskAction,
-  deleteTaskAction,
-  toggleTaskStatusAction,
-} from "@/actions/tasks";
-import { TaskStats } from "./task-stats";
-import { TaskFilters } from "./task-filters";
-import { TaskCard } from "./task-card";
-import { TaskEmptyState } from "./task-empty-state";
+import { createTaskAction, updateTaskAction, deleteTaskAction, toggleTaskStatusAction } from "@/actions/tasks";
+import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { TaskRow } from "./task-row";
 import { TaskFormDialog } from "./task-form-dialog";
 import { DeleteTaskDialog } from "./delete-task-dialog";
 
 interface TaskManagerProps {
   initialTasks: Task[];
+  timezone: string;
+  now: Date;
 }
 
-export function TaskManager({ initialTasks }: TaskManagerProps) {
+type View = "open" | "done" | "all";
+
+const PRIORITY_SCORE: Record<TaskPriority, number> = { URGENT: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+
+function byDeadlineThenPriority(a: Task, b: Task) {
+  const ad = a.deadline?.getTime() ?? Infinity;
+  const bd = b.deadline?.getTime() ?? Infinity;
+  if (ad !== bd) return ad - bd;
+  return PRIORITY_SCORE[b.priority] - PRIORITY_SCORE[a.priority];
+}
+
+function isOpen(task: Task) {
+  return task.status === "TODO" || task.status === "IN_PROGRESS";
+}
+
+export function TaskManager({ initialTasks, timezone, now }: TaskManagerProps) {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [isPending, startTransition] = useTransition();
-
-  // Filter and Sort states
+  const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<TaskStatus | "ALL">("ALL");
-  const [priority, setPriority] = useState<TaskPriority | "ALL">("ALL");
-  const [sortBy, setSortBy] = useState<"createdAt" | "deadline" | "priority">("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [view, setView] = useState<View>("open");
 
-  // Dialog states
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Updating task IDs for optimistic micro-states
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Calculated stats
-  const stats = useMemo(() => {
-    return {
-      total: tasks.length,
-      todo: tasks.filter((t) => t.status === "TODO").length,
-      inProgress: tasks.filter((t) => t.status === "IN_PROGRESS").length,
-      completed: tasks.filter((t) => t.status === "COMPLETED").length,
-      urgent: tasks.filter(
-        (t) =>
-          (t.priority === "URGENT" || t.priority === "HIGH") &&
-          t.status !== "COMPLETED" &&
-          t.status !== "CANCELLED"
-      ).length,
-    };
-  }, [tasks]);
+  const groups = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const matches = tasks.filter(
+      (t) => !query || t.title.toLowerCase().includes(query) || t.description?.toLowerCase().includes(query)
+    );
 
-  // Filtered and sorted tasks
-  const filteredTasks = useMemo(() => {
-    return tasks
-      .filter((t) => {
-        // Status filter
-        if (status !== "ALL" && t.status !== status) return false;
-        // Priority filter
-        if (priority !== "ALL" && t.priority !== priority) return false;
-        // Search filter
-        if (search.trim()) {
-          const q = search.toLowerCase().trim();
-          const matchTitle = t.title.toLowerCase().includes(q);
-          const matchDesc = t.description ? t.description.toLowerCase().includes(q) : false;
-          if (!matchTitle && !matchDesc) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        let diff = 0;
-        if (sortBy === "deadline") {
-          const aTime = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-          const bTime = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-          diff = aTime - bTime;
-        } else if (sortBy === "priority") {
-          const priorityScore: Record<TaskPriority, number> = {
-            URGENT: 4,
-            HIGH: 3,
-            MEDIUM: 2,
-            LOW: 1,
-          };
-          diff = priorityScore[b.priority] - priorityScore[a.priority];
-        } else {
-          // createdAt
-          const aTime = new Date(a.createdAt).getTime();
-          const bTime = new Date(b.createdAt).getTime();
-          diff = bTime - aTime;
-        }
-        return sortOrder === "asc" ? -diff : diff;
-      });
-  }, [tasks, status, priority, search, sortBy, sortOrder]);
+    const weekEnd = addDaysToDateKey(toLocalDateKey(now, timezone), 6);
+    const open = matches.filter(isOpen).sort(byDeadlineThenPriority);
+    const closed = matches
+      .filter((t) => !isOpen(t))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
-  const hasActiveFilters = search.trim() !== "" || status !== "ALL" || priority !== "ALL";
+    const result: { label: string; tasks: Task[] }[] = [];
+    if (view !== "done") {
+      result.push(
+        { label: "Overdue", tasks: open.filter((t) => t.deadline && t.deadline < now) },
+        {
+          label: "Next 7 days",
+          tasks: open.filter((t) => t.deadline && t.deadline >= now && toLocalDateKey(t.deadline, timezone) <= weekEnd),
+        },
+        { label: "Later", tasks: open.filter((t) => t.deadline && toLocalDateKey(t.deadline, timezone) > weekEnd) },
+        { label: "No deadline", tasks: open.filter((t) => !t.deadline) }
+      );
+    }
+    if (view !== "open") result.push({ label: "Done", tasks: closed });
+    return result.filter((group) => group.tasks.length > 0);
+  }, [tasks, search, view, now, timezone]);
 
-  const handleClearFilters = () => {
-    setSearch("");
-    setStatus("ALL");
-    setPriority("ALL");
+  const openCount = tasks.filter(isOpen).length;
+
+  const openCreate = () => {
+    setEditingTask(null);
+    setIsFormOpen(true);
   };
 
-  // Create or Update task handler
   const handleSaveTask = async (data: {
     title: string;
     description?: string | null;
@@ -117,166 +91,157 @@ export function TaskManager({ initialTasks }: TaskManagerProps) {
     deadline?: string | null;
   }) => {
     setActionError(null);
-    if (editingTask) {
-      // Update
-      const res = await updateTaskAction(editingTask.id, {
-        title: data.title,
-        description: data.description ?? null,
-        priority: data.priority,
-        status: data.status,
-        estimatedMinutes: data.estimatedMinutes ?? null,
-        deadline: data.deadline ?? null,
-      });
+    const res = editingTask
+      ? await updateTaskAction(editingTask.id, {
+          title: data.title,
+          description: data.description ?? null,
+          priority: data.priority,
+          status: data.status,
+          estimatedMinutes: data.estimatedMinutes ?? null,
+          deadline: data.deadline ?? null,
+        })
+      : await createTaskAction({
+          title: data.title,
+          description: data.description ?? null,
+          priority: data.priority,
+          status: "TODO",
+          estimatedMinutes: data.estimatedMinutes ?? null,
+          deadline: data.deadline ?? null,
+        });
 
-      if (!res.success) {
-        return {
-          success: false,
-          error: res.error || "Failed to update task",
-          fieldErrors: res.fieldErrors,
-        };
-      }
-
-      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? res.data : t)));
-      return { success: true };
-    } else {
-      // Create
-      const res = await createTaskAction({
-        title: data.title,
-        description: data.description ?? null,
-        priority: data.priority,
-        status: data.status || "TODO",
-        estimatedMinutes: data.estimatedMinutes ?? null,
-        deadline: data.deadline ?? null,
-      });
-
-      if (!res.success) {
-        return {
-          success: false,
-          error: res.error || "Failed to create task",
-          fieldErrors: res.fieldErrors,
-        };
-      }
-
-      setTasks((prev) => [res.data, ...prev]);
-      return { success: true };
+    if (!res.success) {
+      return { success: false, error: res.error, fieldErrors: res.fieldErrors };
     }
+
+    setTasks((prev) =>
+      editingTask ? prev.map((t) => (t.id === editingTask.id ? res.data : t)) : [res.data, ...prev]
+    );
+    router.refresh();
+    return { success: true };
   };
 
-  // Toggle Status handler
-  const handleToggleStatus = async (id: string, newStatus: TaskStatus) => {
-    setUpdatingTaskId(id);
+  const handleToggle = (task: Task) => {
+    const newStatus: TaskStatus = task.status === "COMPLETED" ? "TODO" : "COMPLETED";
+    setUpdatingTaskId(task.id);
     setActionError(null);
-
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: newStatus, updatedAt: new Date() } : t))
-    );
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: newStatus, updatedAt: new Date() } : t)));
 
     startTransition(async () => {
-      const res = await toggleTaskStatusAction(id, newStatus);
+      const res = await toggleTaskStatusAction(task.id, newStatus);
       if (!res.success) {
-        setActionError(res.error || "Failed to update task status");
-        // Rollback
-        setTasks(initialTasks);
-      } else if (res.data) {
-        setTasks((prev) => prev.map((t) => (t.id === id ? res.data! : t)));
+        setActionError(res.error || "Could not update the task");
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+      } else {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? res.data : t)));
       }
       setUpdatingTaskId(null);
     });
   };
 
-  // Delete task confirmation handler
   const handleConfirmDelete = async (id: string) => {
     setIsDeleting(true);
     setActionError(null);
-    try {
-      const res = await deleteTaskAction(id);
-      if (res.success) {
-        setTasks((prev) => prev.filter((t) => t.id !== id));
-        setIsDeleteOpen(false);
-        setDeletingTask(null);
-      } else {
-        setActionError(res.error || "Failed to delete task");
-      }
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to delete task");
-    } finally {
-      setIsDeleting(false);
+    const res = await deleteTaskAction(id);
+    setIsDeleting(false);
+    if (!res.success) {
+      setActionError(res.error || "Could not delete the task");
+      return;
     }
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setDeletingTask(null);
+    router.refresh();
   };
 
   return (
-    <div>
-      {/* Global Action Error Alert */}
-      {actionError && (
-        <div
-          role="alert"
-          className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-center justify-between"
-        >
-          <span>{actionError}</span>
-          <button
-            type="button"
-            onClick={() => setActionError(null)}
-            className="text-xs text-red-500 hover:text-red-700 ml-4"
-          >
-            Dismiss
-          </button>
+    <main className="mx-auto max-w-3xl px-5 pt-6 sm:px-8 lg:px-10 lg:pt-10">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted">{openCount} open</p>
+          <h1 className="font-serif text-[34px] leading-tight lg:text-[40px]">Tasks</h1>
         </div>
-      )}
+        <Button variant="primary" onClick={openCreate} className="mb-1">
+          <PlusIcon className="h-4 w-4" />
+          New task
+        </Button>
+      </header>
 
-      {/* Stats Cards */}
-      <TaskStats stats={stats} />
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
+          <label htmlFor="task-search" className="sr-only">
+            Search tasks
+          </label>
+          <Input
+            id="task-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search"
+            className="pl-10"
+          />
+        </div>
+        <div role="group" aria-label="Show" className="grid grid-cols-3 gap-1 rounded-xl bg-line/50 p-1 sm:w-64">
+          {(["open", "done", "all"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={view === option}
+              onClick={() => setView(option)}
+              className={`h-9 rounded-lg text-[13px] capitalize transition-colors ${
+                view === option ? "bg-sheet font-medium text-ink shadow-[0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-ink"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Filters, Search, and New Task Trigger */}
-      <TaskFilters
-        search={search}
-        onSearchChange={setSearch}
-        status={status}
-        onStatusChange={setStatus}
-        priority={priority}
-        onPriorityChange={setPriority}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        sortOrder={sortOrder}
-        onSortOrderChange={setSortOrder}
-        onOpenCreateDialog={() => {
-          setEditingTask(null);
-          setIsFormOpen(true);
-        }}
-      />
+      {actionError && <p className="mt-4 text-sm text-danger">{actionError}</p>}
 
-      {/* Task List or Empty State */}
-      {filteredTasks.length === 0 ? (
-        <TaskEmptyState
-          hasFilters={hasActiveFilters}
-          onClearFilters={handleClearFilters}
-          onCreateTask={() => {
-            setEditingTask(null);
-            setIsFormOpen(true);
-          }}
-        />
+      {groups.length === 0 ? (
+        <div className="mt-10 border-l border-line-strong py-2 pl-6">
+          <p className="font-serif text-lg text-ink-soft">
+            {search.trim()
+              ? "Nothing matches that search."
+              : view === "done"
+                ? "Nothing finished yet."
+                : "No open tasks. Add one when something comes up."}
+          </p>
+        </div>
       ) : (
-        <div className="space-y-3">
-          {filteredTasks.map((taskItem) => (
-            <TaskCard
-              key={taskItem.id}
-              task={taskItem}
-              onEdit={(t) => {
-                setEditingTask(t);
-                setIsFormOpen(true);
-              }}
-              onDelete={(t) => {
-                setDeletingTask(t);
-                setIsDeleteOpen(true);
-              }}
-              onToggleStatus={handleToggleStatus}
-              isUpdating={updatingTaskId === taskItem.id || isPending}
-            />
+        <div className="mt-8 space-y-8">
+          {groups.map((group) => (
+            <section key={group.label} aria-label={group.label}>
+              <h2
+                className={`mb-1 text-xs font-semibold uppercase tracking-[0.08em] ${
+                  group.label === "Overdue" ? "text-accent" : "text-muted"
+                }`}
+              >
+                {group.label} · {group.tasks.length}
+              </h2>
+              <ul className="divide-y divide-line">
+                {group.tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    now={now}
+                    timezone={timezone}
+                    busy={updatingTaskId === task.id}
+                    onToggle={handleToggle}
+                    onEdit={(t) => {
+                      setEditingTask(t);
+                      setIsFormOpen(true);
+                    }}
+                    onDelete={setDeletingTask}
+                  />
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
       )}
 
-      {/* Create / Edit Dialog */}
       {isFormOpen && (
         <TaskFormDialog
           key={editingTask?.id || "new"}
@@ -290,17 +255,13 @@ export function TaskManager({ initialTasks }: TaskManagerProps) {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <DeleteTaskDialog
-        isOpen={isDeleteOpen}
+        isOpen={deletingTask !== null}
         task={deletingTask}
-        onClose={() => {
-          setIsDeleteOpen(false);
-          setDeletingTask(null);
-        }}
+        onClose={() => setDeletingTask(null)}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
       />
-    </div>
+    </main>
   );
 }

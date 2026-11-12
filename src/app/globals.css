@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
+/*
+ * Paper palette. One accent (burnt orange) reserved for "now", "urgent" and
+ * "overdue". Everything else is ink on paper.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f6f3ec;
+  --sheet: #fffdf8;
+  --ink: #1c1917;
+  --ink-soft: #44403c;
+  --muted: #78716c;
+  --faint: #a8a29e;
+  --line: #e7e2d6;
+  --line-strong: #d6d0c2;
+  --accent: #c2410c;
+  --accent-soft: #fdf1ec;
+  --danger: #b91c1c;
+  --danger-soft: #fdf0ee;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #171512;
+    --sheet: #201d19;
+    --ink: #ede8de;
+    --ink-soft: #d6d0c4;
+    --muted: #a39d93;
+    --faint: #6f6a62;
+    --line: #2d2924;
+    --line-strong: #3e3932;
+    --accent: #f08a5d;
+    --accent-soft: #2e2019;
+    --danger: #f19a8f;
+    --danger-soft: #2c1816;
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(28 25 23 / 0.35);
+}
+
+/* Space reserved for the fixed bottom navigation on phones. */
+.pb-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  .pb-nav {
+    padding-bottom: 3rem;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

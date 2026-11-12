@@ -1,7 +1,6 @@
 import React from "react";
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Navbar } from "@/components/navbar";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,12 +13,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "AI Daily Planner",
-    template: "%s | AI Daily Planner",
+    default: "Daily Planner",
+    template: "%s · Daily Planner",
   },
-  description: "Organize your tasks and generate realistic daily schedules using AI.",
+  description: "Plans your free hours around your deadlines.",
+  applicationName: "Daily Planner",
+  appleWebApp: {
+    capable: true,
+    title: "Planner",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f3ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#171512" },
+  ],
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -30,12 +49,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-100">
-        <Navbar />
-        <div className="flex-1">{children}</div>
-      </body>
+      <body className="min-h-dvh bg-paper text-ink">{children}</body>
     </html>
   );
 }

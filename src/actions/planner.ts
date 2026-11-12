@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { and, eq, gte, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, notExists, or } from "drizzle-orm";
 import { db } from "@/db";
 import { dailyPlan, scheduleItem, task, availability, user } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
@@ -16,6 +16,8 @@ import {
 import { createTaskSchema } from "@/lib/validations/task";
 import { confirmTaskProposalSchema, type ConfirmTaskProposalInput } from "@/lib/validations/proposal";
 import { scheduleTasks } from "@/lib/scheduling/engine";
+import { buildBusyWindows, groupScheduledItemsByLocalDate } from "@/lib/scheduling/plan-utils";
+import { addDaysToDateKey, toLocalDateKey, toLocalTimeString } from "@/lib/scheduling/timezone";
 import type { ScheduleOutput, TimeWindow } from "@/lib/scheduling/types";
 import { suggestAiPlanOrdering } from "@/lib/ai/suggest";
 import type { AiPlanResult } from "@/lib/ai/schemas";
@@ -80,7 +82,7 @@ async function generatePlanInternal(
       aiResult = await suggestAiPlanOrdering({
         tasks: scheduleData.eligibleTasks,
         availability: scheduleData.availabilityBlocks,
-        existingItems: scheduleData.existingItemsWithTask,
+        existingItems: scheduleData.busyItemsWithTask,
         deterministicSchedule: scheduleData.baseSchedule.scheduled,
         unscheduledTasks: scheduleData.baseSchedule.unscheduled.map((u) => ({
           taskId: u.task.id,
@@ -110,12 +112,13 @@ async function generatePlanInternal(
       userId,
       startDate: validated.startDate,
       endDate: validated.endDate,
+      timezone: scheduleData.timezone,
       scheduleResult: finalSchedule,
       aiGenerated: aiResult !== null,
       aiNotes: aiResult ? formatAiNotes(aiResult.notes, aiResult.warnings) : null,
     });
 
-    revalidatePath("/planner");
+    revalidatePlannerViews();
     return { success: true, data: planResult };
   } catch (error) {
     return {
@@ -138,7 +141,8 @@ interface BuildScheduleDataOptions {
 interface BuildScheduleDataOutput {
   eligibleTasks: typeof task.$inferSelect[];
   availabilityBlocks: (typeof availability.$inferSelect)[];
-  existingItemsWithTask: Array<{ taskId: string | null; startTime: Date; endTime: Date }>;
+  /** Items that survive regeneration (completed or skipped) and still occupy their time. */
+  busyItemsWithTask: Array<{ taskId: string | null; startTime: Date; endTime: Date }>;
   existingItems: TimeWindow[];
   baseSchedule: ScheduleOutput;
   timezone: string;
@@ -147,8 +151,9 @@ interface BuildScheduleDataOutput {
 
 async function buildScheduleData(options: BuildScheduleDataOptions): Promise<BuildScheduleDataOutput> {
   const { userId, startDate, endDate, taskOrder } = options;
+  const now = new Date();
 
-  const [eligibleTasks, availabilityBlocks, existingPlansWithItems, userRecord] = await Promise.all([
+  const [openTasks, availabilityBlocks, existingPlansWithItems, userRecord, scheduledElsewhere] = await Promise.all([
     db.query.task.findMany({
       where: and(
         eq(task.userId, userId),
@@ -169,33 +174,48 @@ async function buildScheduleData(options: BuildScheduleDataOptions): Promise<Bui
       where: eq(user.id, userId),
       columns: { timezone: true },
     }),
+    // Tasks that already have an upcoming block on a day outside this range.
+    db
+      .select({ taskId: scheduleItem.taskId })
+      .from(scheduleItem)
+      .innerJoin(dailyPlan, eq(scheduleItem.dailyPlanId, dailyPlan.id))
+      .where(
+        and(
+          eq(dailyPlan.userId, userId),
+          eq(scheduleItem.status, "SCHEDULED"),
+          gt(scheduleItem.endTime, now),
+          or(lt(dailyPlan.date, startDate), gt(dailyPlan.date, endDate))
+        )
+      ),
   ]);
 
+  // Planning a range must not schedule a task a second time when it is already
+  // planned on another upcoming day.
+  const alreadyPlanned = new Set(scheduledElsewhere.map((row) => row.taskId));
+  const eligibleTasks = openTasks.filter((t) => !alreadyPlanned.has(t.id));
+
   const planIds = existingPlansWithItems.map((plan) => plan.id);
-  const existingItemsWithTask: Array<{ taskId: string | null; startTime: Date; endTime: Date }> =
+  const itemsInRange =
     planIds.length > 0
       ? await db
           .select({
             taskId: scheduleItem.taskId,
+            status: scheduleItem.status,
             startTime: scheduleItem.startTime,
             endTime: scheduleItem.endTime,
           })
           .from(scheduleItem)
-          .where(
-            and(
-              eq(scheduleItem.status, "SCHEDULED"),
-              or(...planIds.map((id) => eq(scheduleItem.dailyPlanId, id)))
-            )
-          )
+          .where(inArray(scheduleItem.dailyPlanId, planIds))
       : [];
 
-  const existingItems: TimeWindow[] = existingItemsWithTask.map((item) => ({
-    start: item.startTime,
-    end: item.endTime,
-  }));
+  // Items still SCHEDULED are about to be replaced, so they must not block
+  // their own slots. Completed/skipped items are kept and stay busy.
+  const busyItemsWithTask = itemsInRange
+    .filter((item) => item.status !== "SCHEDULED")
+    .map(({ taskId, startTime, endTime }) => ({ taskId, startTime, endTime }));
+  const existingItems: TimeWindow[] = buildBusyWindows(itemsInRange);
 
   const timezone = userRecord?.timezone ?? "UTC";
-  const now = new Date();
 
   const baseScheduleResult = scheduleTasks({
     tasks: eligibleTasks,
@@ -211,7 +231,7 @@ async function buildScheduleData(options: BuildScheduleDataOptions): Promise<Bui
   return {
     eligibleTasks,
     availabilityBlocks,
-    existingItemsWithTask,
+    busyItemsWithTask,
     existingItems,
     baseSchedule: baseScheduleResult,
     timezone,
@@ -223,57 +243,86 @@ interface PersistScheduleOptions {
   userId: string;
   startDate: string;
   endDate: string;
+  timezone: string;
   scheduleResult: ScheduleOutput;
   aiGenerated: boolean;
   aiNotes: string | null;
 }
 
+/**
+ * Replaces the SCHEDULED items in the date range with a new schedule.
+ *
+ * Completed and skipped items are kept, so regenerating never erases what the
+ * user already did. Each day reuses its existing DailyPlan when there is one,
+ * and plans left with no items are removed.
+ */
 async function persistSchedule(options: PersistScheduleOptions): Promise<GeneratePlanResult> {
-  const { userId, startDate, endDate, scheduleResult, aiGenerated, aiNotes } = options;
+  const { userId, startDate, endDate, timezone, scheduleResult, aiGenerated, aiNotes } = options;
 
-  const itemsByDate = new Map<string, typeof scheduleResult.scheduled>();
-  for (const item of scheduleResult.scheduled) {
-    const dateKey = toDateKey(item.startTime);
-    const group = itemsByDate.get(dateKey) ?? [];
-    group.push(item);
-    itemsByDate.set(dateKey, group);
-  }
+  const itemsByDate = groupScheduledItemsByLocalDate(scheduleResult.scheduled, timezone);
+  const inRange = and(
+    eq(dailyPlan.userId, userId),
+    gte(dailyPlan.date, startDate),
+    lte(dailyPlan.date, endDate)
+  );
 
   await db.transaction(async (tx) => {
-    await tx.delete(dailyPlan).where(
-      and(
-        eq(dailyPlan.userId, userId),
-        gte(dailyPlan.date, startDate),
-        lte(dailyPlan.date, endDate)
-      )
-    );
+    const plansInRange = await tx.query.dailyPlan.findMany({ where: inRange });
+    const planIds = plansInRange.map((plan) => plan.id);
 
-    for (const [dateKey, items] of itemsByDate) {
-      const [plan] = await tx
-        .insert(dailyPlan)
-        .values({
-          userId,
-          date: dateKey,
-          aiGenerated,
-          aiNotes,
-        })
-        .returning();
+    if (planIds.length > 0) {
+      await tx
+        .delete(scheduleItem)
+        .where(and(inArray(scheduleItem.dailyPlanId, planIds), eq(scheduleItem.status, "SCHEDULED")));
+    }
 
-      if (!plan) {
-        throw new Error("Failed to create daily plan");
-      }
-
-      if (items.length > 0) {
-        await tx.insert(scheduleItem).values(
-          items.map((item) => ({
-            dailyPlanId: plan.id,
-            taskId: item.taskId,
-            startTime: item.startTime,
-            endTime: item.endTime,
-          }))
-        );
+    const planIdByDate = new Map<string, string>();
+    for (const plan of plansInRange) {
+      if (!planIdByDate.has(plan.date)) {
+        planIdByDate.set(plan.date, plan.id);
       }
     }
+
+    for (const [dateKey, items] of itemsByDate) {
+      let planId = planIdByDate.get(dateKey);
+
+      if (planId) {
+        await tx
+          .update(dailyPlan)
+          .set({ aiGenerated, aiNotes, updatedAt: new Date() })
+          .where(eq(dailyPlan.id, planId));
+      } else {
+        const [plan] = await tx
+          .insert(dailyPlan)
+          .values({ userId, date: dateKey, aiGenerated, aiNotes })
+          .returning({ id: dailyPlan.id });
+
+        if (!plan) {
+          throw new Error("Failed to create daily plan");
+        }
+        planId = plan.id;
+      }
+
+      await tx.insert(scheduleItem).values(
+        items.map((item) => ({
+          dailyPlanId: planId,
+          taskId: item.taskId,
+          startTime: item.startTime,
+          endTime: item.endTime,
+        }))
+      );
+    }
+
+    await tx
+      .delete(dailyPlan)
+      .where(
+        and(
+          inRange,
+          notExists(
+            tx.select({ id: scheduleItem.id }).from(scheduleItem).where(eq(scheduleItem.dailyPlanId, dailyPlan.id))
+          )
+        )
+      );
   });
 
   return {
@@ -339,8 +388,8 @@ export async function generateTaskProposalAction(
     const now = new Date();
 
     const context: AiTaskProposalContext = {
-      currentDate: toDateString(now),
-      currentTime: toTimeString(now),
+      currentDate: toLocalDateKey(now, timezone),
+      currentTime: toLocalTimeString(now, timezone),
       timezone,
       dateRange: { start: validated.startDate, end: validated.endDate },
       request: validated.request,
@@ -457,14 +506,14 @@ export async function confirmTaskProposalAction(
       userId,
       startDate: validated.startDate,
       endDate: validated.endDate,
+      timezone: scheduleData.timezone,
       scheduleResult: scheduleData.baseSchedule,
       aiGenerated: false,
       aiNotes: null,
     });
 
-    revalidatePath("/planner");
+    revalidatePlannerViews();
     revalidatePath("/tasks");
-    revalidatePath("/dashboard");
 
     return { success: true, data: planResult };
   } catch (error) {
@@ -533,7 +582,7 @@ export async function deletePlanAction(id: string): Promise<ActionResult<void>> 
     }
 
     await db.delete(dailyPlan).where(eq(dailyPlan.id, id));
-    revalidatePath("/planner");
+    revalidatePlannerViews();
     return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: safeErrorMessage(error, "Failed to delete plan") };
@@ -565,36 +614,187 @@ export async function updateScheduleItemStatusAction(
       return { success: false, error: "Schedule item not found" };
     }
 
-    await db
-      .update(scheduleItem)
-      .set({ status: validated.status, updatedAt: new Date() })
-      .where(eq(scheduleItem.id, id));
+    await db.transaction(async (tx) => {
+      const updatedAt = new Date();
+      await tx
+        .update(scheduleItem)
+        .set({ status: validated.status, updatedAt })
+        .where(eq(scheduleItem.id, id));
 
-    revalidatePath("/planner");
+      // Keep the task in step with its block: finishing the block finishes the
+      // task, and undoing it reopens a task that was completed.
+      if (item.taskId) {
+        const ownTask = and(eq(task.id, item.taskId), eq(task.userId, userId));
+        if (validated.status === "COMPLETED") {
+          await tx.update(task).set({ status: "COMPLETED", updatedAt }).where(ownTask);
+        } else if (validated.status === "SCHEDULED") {
+          await tx
+            .update(task)
+            .set({ status: "TODO", updatedAt })
+            .where(and(ownTask, eq(task.status, "COMPLETED")));
+        }
+      }
+    });
+
+    revalidatePlannerViews();
     return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: safeErrorMessage(error, "Failed to update schedule item") };
   }
 }
 
-function toDateKey(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function revalidatePlannerViews() {
+  revalidatePath("/today");
+  revalidatePath("/week");
+  revalidatePath("/tasks");
 }
 
-function toDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+export interface TodayData {
+  timezone: string;
+  today: string;
+  items: PlanWithItems["items"];
+  deadlines: (typeof task.$inferSelect)[];
+  unplanned: (typeof task.$inferSelect)[];
+  hasAvailability: boolean;
 }
 
-function toTimeString(date: Date): string {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+/**
+ * Everything the Today screen needs, in one round of queries.
+ */
+export async function getTodayQuery(): Promise<TodayData> {
+  const session = await requireAuth();
+  const userId = session.user.id;
+  const now = new Date();
+
+  const [userRecord, availabilityCount] = await Promise.all([
+    db.query.user.findFirst({ where: eq(user.id, userId), columns: { timezone: true } }),
+    db.$count(availability, eq(availability.userId, userId)),
+  ]);
+  const timezone = userRecord?.timezone ?? "UTC";
+  const today = toLocalDateKey(now, timezone);
+  const deadlineHorizon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [todayRows, openTasks, upcomingTaskIds] = await Promise.all([
+    db
+      .select()
+      .from(scheduleItem)
+      .innerJoin(dailyPlan, eq(scheduleItem.dailyPlanId, dailyPlan.id))
+      .leftJoin(task, eq(scheduleItem.taskId, task.id))
+      .where(and(eq(dailyPlan.userId, userId), eq(dailyPlan.date, today)))
+      .orderBy(asc(scheduleItem.startTime)),
+    db.query.task.findMany({
+      where: and(eq(task.userId, userId), or(eq(task.status, "TODO"), eq(task.status, "IN_PROGRESS"))),
+      orderBy: [asc(task.deadline), asc(task.createdAt)],
+    }),
+    db
+      .selectDistinct({ taskId: scheduleItem.taskId })
+      .from(scheduleItem)
+      .innerJoin(dailyPlan, eq(scheduleItem.dailyPlanId, dailyPlan.id))
+      .where(
+        and(
+          eq(dailyPlan.userId, userId),
+          eq(scheduleItem.status, "SCHEDULED"),
+          gt(scheduleItem.endTime, now),
+          isNotNull(scheduleItem.taskId)
+        )
+      ),
+  ]);
+
+  const planned = new Set(upcomingTaskIds.map((row) => row.taskId));
+
+  return {
+    timezone,
+    today,
+    items: todayRows.map((row) => ({ ...row.schedule_item, task: row.task })),
+    deadlines: openTasks.filter((t) => t.deadline && t.deadline <= deadlineHorizon),
+    unplanned: openTasks.filter((t) => !planned.has(t.id)),
+    hasAvailability: availabilityCount > 0,
+  };
+}
+
+/** Today through today + 6 in the user's timezone: the window Today and Week plan into. */
+function weekRangeFor(timezone: string): { startDate: string; endDate: string } {
+  const startDate = toLocalDateKey(new Date(), timezone);
+  return { startDate, endDate: addDaysToDateKey(startDate, 6) };
+}
+
+/**
+ * Replans the coming week (today to today + 6). Used by "Replan" on Today and
+ * after quick-add.
+ */
+export async function replanWeekAction(): Promise<ActionResult<GeneratePlanResult>> {
+  try {
+    const session = await requireAuth();
+    const record = await db.query.user.findFirst({
+      where: eq(user.id, session.user.id),
+      columns: { timezone: true },
+    });
+    return await generatePlanInternal(weekRangeFor(record?.timezone ?? "UTC"), { ai: false });
+  } catch (error) {
+    return { success: false, error: safeErrorMessage(error, "Failed to replan") };
+  }
+}
+
+export interface QuickAddOutcome {
+  taskId: string;
+  title: string;
+  plannedAt: Date | null;
+  notPlannedReason: string | null;
+}
+
+/**
+ * Creates a task from quick-add and immediately plans it into the coming week.
+ * The task is saved even if planning fails; the outcome says what happened.
+ */
+export async function quickAddTaskAction(input: unknown): Promise<ActionResult<QuickAddOutcome>> {
+  try {
+    const session = await requireAuth();
+    const parsed = createTaskSchema.safeParse(input);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return { success: false, error: first?.message ?? "Check the task details" };
+    }
+
+    const [created] = await db
+      .insert(task)
+      .values({
+        userId: session.user.id,
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+        priority: parsed.data.priority,
+        status: "TODO",
+        estimatedMinutes: parsed.data.estimatedMinutes ?? null,
+        deadline: parsed.data.deadline ?? null,
+      })
+      .returning();
+
+    if (!created) {
+      return { success: false, error: "Failed to add task" };
+    }
+
+    const planned = await replanWeekAction();
+    let plannedAt: Date | null = null;
+    let notPlannedReason: string | null = null;
+
+    if (planned.success) {
+      plannedAt = planned.data.scheduled.find((item) => item.taskId === created.id)?.startTime ?? null;
+      if (!plannedAt) {
+        notPlannedReason =
+          planned.data.unscheduled.find((u) => u.task.id === created.id)?.reason ??
+          "Already planned or outside this week";
+      }
+    } else {
+      notPlannedReason = planned.error;
+    }
+
+    revalidatePlannerViews();
+    return {
+      success: true,
+      data: { taskId: created.id, title: created.title, plannedAt, notPlannedReason },
+    };
+  } catch (error) {
+    return { success: false, error: safeErrorMessage(error, "Failed to add task") };
+  }
 }
 
 function formatAiNotes(notes: string[], warnings: string[]): string | null {

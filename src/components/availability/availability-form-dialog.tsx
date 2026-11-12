@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { Availability, DayOfWeek } from "@/db/schema";
-import { CloseIcon } from "@/components/ui/icons";
 import { dayOrder, type CreateAvailabilityInput, type UpdateAvailabilityInput } from "@/lib/validations/availability";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { ErrorNote, Field, Input, Select } from "@/components/ui/field";
 
 interface AvailabilityFormDialogProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ interface AvailabilityFormDialogProps {
     error?: string;
     fieldErrors?: Record<string, string[] | undefined>;
   }>;
+  onDelete?: (id: string) => Promise<void>;
   initialBlock?: Availability | null;
   defaultDayOfWeek?: DayOfWeek;
 }
@@ -27,175 +30,120 @@ const dayLabels: Record<DayOfWeek, string> = {
   SUNDAY: "Sunday",
 };
 
-function normalizeTime(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.slice(0, 5);
-}
+const presets = [
+  { label: "Morning", start: "08:00", end: "12:00" },
+  { label: "Afternoon", start: "13:00", end: "17:00" },
+  { label: "Evening", start: "19:00", end: "22:00" },
+];
 
 export function AvailabilityFormDialog({
   isOpen,
   onClose,
   onSubmit,
+  onDelete,
   initialBlock,
   defaultDayOfWeek,
 }: AvailabilityFormDialogProps) {
   const isEditing = !!initialBlock;
 
-  const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek>(
-    initialBlock?.dayOfWeek ?? defaultDayOfWeek ?? "MONDAY"
-  );
-  const [startTime, setStartTime] = useState(normalizeTime(initialBlock?.startTime) ?? "09:00");
-  const [endTime, setEndTime] = useState(normalizeTime(initialBlock?.endTime) ?? "17:00");
-
+  const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek>(initialBlock?.dayOfWeek ?? defaultDayOfWeek ?? "MONDAY");
+  const [startTime, setStartTime] = useState(initialBlock?.startTime.slice(0, 5) ?? "19:00");
+  const [endTime, setEndTime] = useState(initialBlock?.endTime.slice(0, 5) ?? "22:00");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-
-    const payload = isEditing
-      ? { dayOfWeek, startTime, endTime }
-      : { dayOfWeek, startTime, endTime };
-
     setIsSubmitting(true);
     try {
-      const res = await onSubmit(payload);
+      const res = await onSubmit({ dayOfWeek, startTime, endTime });
       if (!res.success) {
-        setError(res.error || "Failed to save availability");
+        setError(res.error || "Could not save");
         if (res.fieldErrors) setFieldErrors(res.fieldErrors);
         return;
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save availability");
+      setError(err instanceof Error ? err.message : "Could not save");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="availability-dialog-title"
-        className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
-      >
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 id="availability-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            {isEditing ? "Edit Availability" : "Add Availability"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close dialog"
-            className="rounded p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-          >
-            <CloseIcon className="h-5 w-5" />
-          </button>
-        </div>
+  const handleDelete = async () => {
+    if (!initialBlock || !onDelete) return;
+    setIsSubmitting(true);
+    await onDelete(initialBlock.id);
+    setIsSubmitting(false);
+    onClose();
+  };
 
-        {error && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+  return (
+    <Dialog open={isOpen} onClose={onClose} title={isEditing ? "Edit free time" : "Add free time"}>
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {error && <ErrorNote>{error}</ErrorNote>}
+
+        <Field label="Day" htmlFor="availability-day" error={fieldErrors.dayOfWeek?.[0]}>
+          <Select
+            id="availability-day"
+            value={dayOfWeek}
+            onChange={(e) => setDayOfWeek(e.target.value as DayOfWeek)}
+            disabled={isEditing}
           >
-            {error}
+            {dayOrder.map((day) => (
+              <option key={day} value={day}>
+                {dayLabels[day]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        {!isEditing && (
+          <div className="flex gap-1.5">
+            {presets.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => {
+                  setStartTime(p.start);
+                  setEndTime(p.end);
+                }}
+                className={`h-9 flex-1 rounded-lg text-[13px] transition-colors ${
+                  startTime === p.start && endTime === p.end ? "bg-ink text-paper" : "bg-paper text-ink-soft hover:bg-line"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
-            <label
-              htmlFor="availability-day"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Day
-            </label>
-            <select
-              id="availability-day"
-              value={dayOfWeek}
-              onChange={(e) => setDayOfWeek(e.target.value as DayOfWeek)}
-              disabled={isEditing}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            >
-              {dayOrder.map((day) => (
-                <option key={day} value={day}>
-                  {dayLabels[day]}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.dayOfWeek && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.dayOfWeek[0]}</p>
-            )}
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="From" htmlFor="availability-start" error={fieldErrors.startTime?.[0]}>
+            <Input id="availability-start" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          </Field>
+          <Field label="Until" htmlFor="availability-end" error={fieldErrors.endTime?.[0]}>
+            <Input id="availability-end" type="time" required value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+          </Field>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="availability-start"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                Start
-              </label>
-              <input
-                id="availability-start"
-                type="time"
-                required
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-              />
-              {fieldErrors.startTime && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.startTime[0]}</p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="availability-end"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                End
-              </label>
-              <input
-                id="availability-end"
-                type="time"
-                required
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-              />
-              {fieldErrors.endTime && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.endTime[0]}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
-            >
-              {isSubmitting ? "Saving..." : isEditing ? "Save Changes" : "Add Block"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center">
+          {isEditing && onDelete && (
+            <Button variant="ghost" onClick={handleDelete} disabled={isSubmitting} className="text-danger hover:text-danger sm:mr-auto">
+              Remove
+            </Button>
+          )}
+          <Button onClick={onClose} disabled={isSubmitting} className={isEditing ? "" : "sm:ml-auto"}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSubmitting}>
+            {isSubmitting ? "Saving…" : isEditing ? "Save" : "Add"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

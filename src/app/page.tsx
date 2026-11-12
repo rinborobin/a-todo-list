@@ -1,80 +1,53 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { DocumentTextIcon, ClockIcon, CalendarIcon } from "@/components/ui/icons";
+import { buttonClasses } from "@/components/ui/button";
+
+const steps = [
+  { title: "Say when you are free", text: "Set your free hours for each day of the week, once." },
+  { title: "Add what is due", text: "Type it like a message: essay due fri 5pm 2h." },
+  { title: "Follow the plan", text: "Each task gets a slot before its deadline. Tick it off when done." },
+];
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-
-  const features = [
-    {
-      title: "Task Management",
-      description: "Track deadlines, priorities, and estimated duration with full user data isolation.",
-      icon: DocumentTextIcon,
-    },
-    {
-      title: "Smart Availability",
-      description: "Define recurring work and study blocks with timezone awareness and constraint validation.",
-      icon: ClockIcon,
-    },
-    {
-      title: "AI Daily Planner",
-      description: "Generate structured, conflict-free schedules and replan dynamically when events change.",
-      icon: CalendarIcon,
-    },
-  ];
+  if (user) redirect("/today");
 
   return (
-    <div className="relative isolate px-6 pt-14 lg:px-8">
-      <div className="mx-auto max-w-3xl py-20 text-center sm:py-28">
-        <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-5xl">
-          Organize your tasks. <br />
-          <span className="text-zinc-600 dark:text-zinc-400">Generate realistic schedules.</span>
+    <div className="mx-auto flex min-h-dvh max-w-3xl flex-col px-5 pb-12 pt-[calc(1.5rem+env(safe-area-inset-top))] sm:px-8">
+      <header className="flex items-center justify-between">
+        <span className="font-serif text-xl">Daily Planner</span>
+        <Link href="/login" className="text-sm text-muted hover:text-ink">
+          Sign in
+        </Link>
+      </header>
+
+      <main className="flex flex-1 flex-col justify-center py-16">
+        <h1 className="max-w-xl font-serif text-[40px] leading-[1.1] sm:text-[52px]">
+          Your deadlines, planned into the hours you are free.
         </h1>
-
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-          AI Daily Planner helps you define your availability, prioritize tasks, and automatically
-          generates realistic, conflict-free daily schedules using artificial intelligence.
+        <p className="mt-5 max-w-md text-[17px] leading-relaxed text-ink-soft">
+          Add what is due. The planner fits each task into your week and tells you what to do next.
         </p>
-
-        <div className="mt-10 flex items-center justify-center gap-x-6">
-          {user ? (
-            <Link
-              href="/dashboard"
-              className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
-            >
-              Go to Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/register"
-                className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
-              >
-                Get Started Free
-              </Link>
-              <Link
-                href="/login"
-                className="text-sm font-semibold leading-6 text-zinc-900 hover:underline dark:text-zinc-100"
-              >
-                Sign In
-              </Link>
-            </>
-          )}
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Link href="/register" className={buttonClasses("primary")}>
+            Create an account
+          </Link>
+          <Link href="/login" className={buttonClasses("ghost")}>
+            Sign in
+          </Link>
         </div>
 
-        <div className="mt-20 grid grid-cols-1 gap-6 text-left sm:grid-cols-3">
-          {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <feature.icon className="mb-3 h-6 w-6 text-zinc-700 dark:text-zinc-300" />
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{feature.title}</h3>
-              <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">{feature.description}</p>
-            </div>
+        <ol className="mt-16 grid gap-6 border-t border-line pt-8 sm:grid-cols-3">
+          {steps.map((step, index) => (
+            <li key={step.title}>
+              <span className="font-serif text-2xl text-faint">{index + 1}</span>
+              <h2 className="mt-1 text-[15px] font-semibold">{step.title}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{step.text}</p>
+            </li>
           ))}
-        </div>
-      </div>
+        </ol>
+      </main>
     </div>
   );
 }

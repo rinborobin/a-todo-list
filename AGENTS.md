@@ -30,9 +30,10 @@ npm run lint         # ESLint only
 npm run db:generate  # Generate Drizzle migrations from src/db/schema.ts
 npm run db:migrate   # Apply pending migrations
 npm run db:studio    # Drizzle Studio
+npm test             # node:test suites (scheduler, quick-add parser, AI validation) via tsx
 ```
 
-There is no test runner configured yet.
+Tests use `node:test` + `tsx`; add new test files to the `test` script in `package.json`.
 
 ## Environment setup
 
@@ -65,7 +66,8 @@ Server-only modules import `"server-only"`. Never import `src/lib/env.ts`, `src/
 - Better Auth handler exposed at `src/app/api/auth/[...all]/route.ts`.
 - Auth client is `src/lib/auth-client.ts`.
 - Session helpers are in `src/lib/session.ts`: `getSession()`, `getCurrentUser()`, `requireAuth()`, `assertUserOwnership()`.
-- `src/middleware.ts` protects `/dashboard`, `/tasks`, `/availability`, `/planner`; redirects unauthenticated users to `/login` and authenticated users away from `/login`/`/register`.
+- `src/proxy.ts` (Next 16 replacement for `middleware.ts`) protects `/today`, `/tasks`, `/week`, `/me`; redirects unauthenticated users to `/login` and authenticated users away from `/login`/`/register`. Old URLs (`/dashboard`, `/planner`, `/availability`) redirect via `next.config.ts`.
+- Login/register `callbackUrl` must go through `safeCallbackUrl()` (`src/lib/safe-redirect.ts`).
 
 ## Database workflow
 

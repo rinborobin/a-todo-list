@@ -6,12 +6,14 @@ import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
 import { GoogleSignInButton } from "./oauth-button";
 import { loginSchema } from "@/lib/validations/auth";
+import { Button } from "@/components/ui/button";
+import { ErrorNote, Field, Input } from "@/components/ui/field";
 
 interface LoginFormProps {
   callbackUrl?: string;
 }
 
-export function LoginForm({ callbackUrl = "/dashboard" }: LoginFormProps) {
+export function LoginForm({ callbackUrl = "/today" }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +26,6 @@ export function LoginForm({ callbackUrl = "/dashboard" }: LoginFormProps) {
     setError(null);
     setFieldErrors({});
 
-    // Client-side validation
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
       const formatted = result.error.format();
@@ -38,13 +39,10 @@ export function LoginForm({ callbackUrl = "/dashboard" }: LoginFormProps) {
     setIsLoading(true);
 
     try {
-      const response = await signIn.email({
-        email,
-        password,
-      });
+      const response = await signIn.email({ email, password });
 
       if (response.error) {
-        // Safe error message to avoid account enumeration
+        // Generic message to avoid account enumeration
         setError(response.error.message || "Invalid email or password");
         setIsLoading(false);
         return;
@@ -53,74 +51,46 @@ export function LoginForm({ callbackUrl = "/dashboard" }: LoginFormProps) {
       router.push(callbackUrl);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred during sign in");
+      setError(err instanceof Error ? err.message : "Sign in failed. Try again.");
       setIsLoading(false);
     }
   };
 
+  const registerHref = `/register${callbackUrl !== "/today" ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`;
+
   return (
-    <div className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 shadow-sm">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Welcome back
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Sign in to access your daily tasks and schedule
-        </p>
+    <div>
+      <h1 className="font-serif text-[32px] leading-tight">Sign in</h1>
+      <p className="mt-1 text-sm text-muted">To see today&apos;s plan and what is due.</p>
+
+      <div className="mt-8">
+        <GoogleSignInButton callbackUrl={callbackUrl} />
       </div>
 
-      <GoogleSignInButton callbackUrl={callbackUrl} />
-
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white dark:bg-zinc-900 px-2 text-zinc-500">Or continue with</span>
-        </div>
+      <div className="my-6 flex items-center gap-3 text-xs text-faint">
+        <span className="h-px flex-1 bg-line" />
+        or with email
+        <span className="h-px flex-1 bg-line" />
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900"
-        >
-          {error}
-        </div>
-      )}
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {error && <ErrorNote>{error}</ErrorNote>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Email address
-          </label>
-          <input
+        <Field label="Email" htmlFor="email" error={fieldErrors.email}>
+          <Input
             id="email"
             type="email"
             autoComplete="email"
+            inputMode="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="you@example.com"
           />
-          {fieldErrors.email && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            Password
-          </label>
-          <input
+        <Field label="Password" htmlFor="password" error={fieldErrors.password}>
+          <Input
             id="password"
             type="password"
             autoComplete="current-password"
@@ -128,30 +98,18 @@ export function LoginForm({ callbackUrl = "/dashboard" }: LoginFormProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-            placeholder="••••••••"
           />
-          {fieldErrors.password && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>
-          )}
-        </div>
+        </Field>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full rounded-lg bg-zinc-900 dark:bg-zinc-100 px-4 py-2.5 text-sm font-semibold text-white dark:text-zinc-900 shadow hover:bg-zinc-800 dark:hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 transition-colors cursor-pointer"
-        >
-          {isLoading ? "Signing in..." : "Sign in"}
-        </button>
+        <Button type="submit" variant="primary" disabled={isLoading} className="w-full">
+          {isLoading ? "Signing in…" : "Sign in"}
+        </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-        Don&apos;t have an account?{" "}
-        <Link
-          href={`/register${callbackUrl !== "/dashboard" ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`}
-          className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
-        >
-          Create an account
+      <p className="mt-6 text-sm text-muted">
+        No account yet?{" "}
+        <Link href={registerHref} className="font-medium text-ink underline-offset-4 hover:underline">
+          Create one
         </Link>
       </p>
     </div>

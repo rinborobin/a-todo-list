@@ -7,7 +7,7 @@ interface OAuthButtonProps {
   callbackUrl?: string;
 }
 
-export function GoogleSignInButton({ callbackUrl = "/dashboard" }: OAuthButtonProps) {
+export function GoogleSignInButton({ callbackUrl = "/today" }: OAuthButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +31,7 @@ export function GoogleSignInButton({ callbackUrl = "/dashboard" }: OAuthButtonPr
         type="button"
         onClick={handleGoogleSignIn}
         disabled={isLoading}
-        className="flex w-full items-center justify-center gap-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 transition-colors cursor-pointer"
+        className="flex h-11 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-line-strong bg-sheet px-4 text-sm font-medium text-ink transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-60"
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -54,7 +54,7 @@ export function GoogleSignInButton({ callbackUrl = "/dashboard" }: OAuthButtonPr
         <span>{isLoading ? "Connecting to Google..." : "Continue with Google"}</span>
       </button>
       {error && (
-        <p className="mt-2 text-center text-xs text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-2 text-center text-xs text-danger" role="alert">
           {error}
         </p>
       )}

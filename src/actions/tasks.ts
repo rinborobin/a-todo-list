@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/db";
-import { task, type Task } from "@/db/schema";
+import { scheduleItem, task, type Task } from "@/db/schema";
 import { requireAuth, assertUserOwnership } from "@/lib/session";
 import {
   createTaskSchema,
@@ -62,7 +62,7 @@ export async function createTaskAction(input: CreateTaskInput): Promise<ActionRe
       .returning();
 
     revalidatePath("/tasks");
-    revalidatePath("/dashboard");
+    revalidatePath("/today");
 
     return { success: true, data: newTask };
   } catch (err) {
@@ -113,7 +113,7 @@ export async function updateTaskAction(
       .returning();
 
     revalidatePath("/tasks");
-    revalidatePath("/dashboard");
+    revalidatePath("/today");
 
     return { success: true, data: updatedTask };
   } catch (err) {
@@ -141,10 +141,18 @@ export async function deleteTaskAction(id: string): Promise<ActionResult<{ id: s
 
     assertUserOwnership(existingTask.userId, session.user.id);
 
-    await db.delete(task).where(and(eq(task.id, id), eq(task.userId, session.user.id)));
+    await db.transaction(async (tx) => {
+      // Upcoming blocks for a deleted task are meaningless; completed and
+      // skipped blocks stay as history (their task_id is set to null).
+      await tx
+        .delete(scheduleItem)
+        .where(and(eq(scheduleItem.taskId, id), eq(scheduleItem.status, "SCHEDULED")));
+      await tx.delete(task).where(and(eq(task.id, id), eq(task.userId, session.user.id)));
+    });
 
     revalidatePath("/tasks");
-    revalidatePath("/dashboard");
+    revalidatePath("/today");
+    revalidatePath("/week");
 
     return { success: true, data: { id } };
   } catch (err) {
@@ -190,7 +198,7 @@ export async function toggleTaskStatusAction(
       .returning();
 
     revalidatePath("/tasks");
-    revalidatePath("/dashboard");
+    revalidatePath("/today");
 
     return { success: true, data: updatedTask };
   } catch (err) {
@@ -274,33 +282,4 @@ export async function getUserTasksQuery(options?: {
     where: and(...conditions),
     orderBy: [order],
   });
-}
-
-/**
- * Server query for aggregated user task statistics.
- */
-export async function getUserTaskStatsQuery(): Promise<{
-  total: number;
-  todo: number;
-  inProgress: number;
-  completed: number;
-  urgent: number;
-}> {
-  const session = await requireAuth();
-  const tasks = await db.query.task.findMany({
-    where: eq(task.userId, session.user.id),
-  });
-
-  return {
-    total: tasks.length,
-    todo: tasks.filter((t) => t.status === "TODO").length,
-    inProgress: tasks.filter((t) => t.status === "IN_PROGRESS").length,
-    completed: tasks.filter((t) => t.status === "COMPLETED").length,
-    urgent: tasks.filter(
-      (t) =>
-        (t.priority === "URGENT" || t.priority === "HIGH") &&
-        t.status !== "COMPLETED" &&
-        t.status !== "CANCELLED"
-    ).length,
-  };
 }

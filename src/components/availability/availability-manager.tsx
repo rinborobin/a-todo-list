@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Availability, DayOfWeek } from "@/db/schema";
 import {
   createAvailabilityBlockAction,
   updateAvailabilityBlockAction,
   deleteAvailabilityBlockAction,
-  clearAvailabilityForDayAction,
   updateUserTimezoneAction,
 } from "@/actions/availability";
 import { dayOrder, type CreateAvailabilityInput, type UpdateAvailabilityInput } from "@/lib/validations/availability";
@@ -29,62 +29,44 @@ const dayLabels: Record<DayOfWeek, string> = {
   SUNDAY: "Sunday",
 };
 
+const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
+
 export function AvailabilityManager({ initialBlocks, initialTimezone }: AvailabilityManagerProps) {
+  const router = useRouter();
   const [blocks, setBlocks] = useState<Availability[]>(initialBlocks);
   const [timezone, setTimezone] = useState(initialTimezone);
-  const [isUpdatingTimezone, setIsUpdatingTimezone] = useState(false);
+  const [timezoneStatus, setTimezoneStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<Availability | null>(null);
   const [defaultDay, setDefaultDay] = useState<DayOfWeek>("MONDAY");
-
   const [actionError, setActionError] = useState<string | null>(null);
 
   const groupedBlocks = useMemo(() => {
-    const grouped: Record<DayOfWeek, Availability[]> = {
-      MONDAY: [],
-      TUESDAY: [],
-      WEDNESDAY: [],
-      THURSDAY: [],
-      FRIDAY: [],
-      SATURDAY: [],
-      SUNDAY: [],
-    };
-    for (const block of blocks) {
-      grouped[block.dayOfWeek].push(block);
-    }
-    for (const day of dayOrder) {
-      grouped[day].sort((a, b) => a.startTime.localeCompare(b.startTime));
-    }
+    const grouped = Object.fromEntries(dayOrder.map((day) => [day, [] as Availability[]])) as Record<
+      DayOfWeek,
+      Availability[]
+    >;
+    for (const block of blocks) grouped[block.dayOfWeek].push(block);
+    for (const day of dayOrder) grouped[day].sort((a, b) => a.startTime.localeCompare(b.startTime));
     return grouped;
   }, [blocks]);
 
   const handleTimezoneChange = async (newTimezone: string) => {
+    const previous = timezone;
     setTimezone(newTimezone);
     setActionError(null);
-    setIsUpdatingTimezone(true);
+    setTimezoneStatus("saving");
 
     const res = await updateUserTimezoneAction({ timezone: newTimezone });
-    setIsUpdatingTimezone(false);
-
     if (!res.success) {
-      setActionError(res.error || "Failed to update timezone");
-      setTimezone(initialTimezone);
+      setActionError(res.error || "Could not change the time zone");
+      setTimezone(previous);
+      setTimezoneStatus("idle");
+      return;
     }
-  };
-
-  const handleOpenCreate = (dayOfWeek: DayOfWeek) => {
-    setEditingBlock(null);
-    setDefaultDay(dayOfWeek);
-    setIsFormOpen(true);
-    setActionError(null);
-  };
-
-  const handleOpenEdit = (block: Availability) => {
-    setEditingBlock(block);
-    setDefaultDay(block.dayOfWeek);
-    setIsFormOpen(true);
-    setActionError(null);
+    setTimezoneStatus("saved");
+    router.refresh();
   };
 
   const handleSubmit = async (data: CreateAvailabilityInput | UpdateAvailabilityInput) => {
@@ -92,27 +74,13 @@ export function AvailabilityManager({ initialBlocks, initialTimezone }: Availabi
 
     if (editingBlock) {
       const res = await updateAvailabilityBlockAction(editingBlock.id, data as UpdateAvailabilityInput);
-      if (!res.success) {
-        return {
-          success: false,
-          error: res.error || "Failed to update block",
-          fieldErrors: res.fieldErrors,
-        };
-      }
-      setBlocks((prev) =>
-        prev.map((b) => (b.id === editingBlock.id ? res.data : b))
-      );
+      if (!res.success) return { success: false, error: res.error, fieldErrors: res.fieldErrors };
+      setBlocks((prev) => prev.map((b) => (b.id === editingBlock.id ? res.data : b)));
       return { success: true };
     }
 
     const res = await createAvailabilityBlockAction(data as CreateAvailabilityInput);
-    if (!res.success) {
-      return {
-        success: false,
-        error: res.error || "Failed to create block",
-        fieldErrors: res.fieldErrors,
-      };
-    }
+    if (!res.success) return { success: false, error: res.error, fieldErrors: res.fieldErrors };
     setBlocks((prev) => [...prev, res.data]);
     return { success: true };
   };
@@ -121,62 +89,65 @@ export function AvailabilityManager({ initialBlocks, initialTimezone }: Availabi
     setActionError(null);
     const res = await deleteAvailabilityBlockAction(id);
     if (!res.success) {
-      setActionError(res.error || "Failed to delete block");
+      setActionError(res.error || "Could not remove that block");
       return;
     }
     setBlocks((prev) => prev.filter((b) => b.id !== id));
   };
 
-  const handleClearDay = async (dayOfWeek: DayOfWeek) => {
-    setActionError(null);
-    const res = await clearAvailabilityForDayAction(dayOfWeek);
-    if (!res.success) {
-      setActionError(res.error || "Failed to clear day");
-      return;
-    }
-    setBlocks((prev) => prev.filter((b) => b.dayOfWeek !== dayOfWeek));
-  };
-
   return (
-    <div>
-      {actionError && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-        >
-          {actionError}
+    <div className="space-y-10">
+      {actionError && <p className="text-sm text-danger">{actionError}</p>}
+
+      <section aria-labelledby="tz-heading">
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 id="tz-heading" className={sectionTitle}>
+            Time zone
+          </h2>
+          <span className="text-xs text-muted" aria-live="polite">
+            {timezoneStatus === "saving" ? "Saving…" : timezoneStatus === "saved" ? "Saved" : ""}
+          </span>
         </div>
-      )}
+        <TimezoneSelector value={timezone} onChange={handleTimezoneChange} disabled={timezoneStatus === "saving"} />
+      </section>
 
-      <div className="mb-6 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
-        <TimezoneSelector value={timezone} onChange={handleTimezoneChange} disabled={isUpdatingTimezone} />
-        {isUpdatingTimezone && <span className="text-xs text-zinc-500 dark:text-zinc-400">Saving...</span>}
-      </div>
-
-      <div className="space-y-4">
-        {dayOrder.map((day) => (
-          <AvailabilityDay
-            key={day}
-            dayOfWeek={day}
-            label={dayLabels[day]}
-            blocks={groupedBlocks[day]}
-            onAdd={handleOpenCreate}
-            onEdit={handleOpenEdit}
-            onDelete={handleDelete}
-            onClearDay={handleClearDay}
-          />
-        ))}
-      </div>
+      <section aria-labelledby="hours-heading">
+        <h2 id="hours-heading" className={sectionTitle}>
+          Free hours each week
+        </h2>
+        <p className="mt-1 text-sm text-muted">Tasks are only planned inside these times. Leave out your classes.</p>
+        <ul className="mt-3 divide-y divide-line border-y border-line">
+          {dayOrder.map((day) => (
+            <AvailabilityDay
+              key={day}
+              dayOfWeek={day}
+              label={dayLabels[day]}
+              blocks={groupedBlocks[day]}
+              onAdd={(d) => {
+                setEditingBlock(null);
+                setDefaultDay(d);
+                setIsFormOpen(true);
+              }}
+              onEdit={(block) => {
+                setEditingBlock(block);
+                setDefaultDay(block.dayOfWeek);
+                setIsFormOpen(true);
+              }}
+            />
+          ))}
+        </ul>
+      </section>
 
       {isFormOpen && (
         <AvailabilityFormDialog
-          key={editingBlock?.id || "new"}
+          key={editingBlock?.id || `new-${defaultDay}`}
           isOpen={isFormOpen}
           onClose={() => {
             setIsFormOpen(false);
             setEditingBlock(null);
           }}
           onSubmit={handleSubmit}
+          onDelete={handleDelete}
           initialBlock={editingBlock}
           defaultDayOfWeek={defaultDay}
         />

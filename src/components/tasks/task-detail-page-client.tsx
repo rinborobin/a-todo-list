@@ -10,9 +10,11 @@ import { updateTaskAction, deleteTaskAction } from "@/actions/tasks";
 
 interface TaskDetailPageClientProps {
   task: Task;
+  timezone: string;
+  now: Date;
 }
 
-export function TaskDetailPageClient({ task }: TaskDetailPageClientProps) {
+export function TaskDetailPageClient({ task, timezone, now }: TaskDetailPageClientProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -64,16 +66,15 @@ export function TaskDetailPageClient({ task }: TaskDetailPageClientProps) {
   return (
     <>
       {actionError && (
-        <div
-          role="alert"
-          className="mx-auto max-w-3xl mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-        >
+        <p role="alert" className="mx-auto mt-4 max-w-2xl px-5 text-sm text-danger sm:px-8 lg:px-10">
           {actionError}
-        </div>
+        </p>
       )}
 
       <TaskDetail
         task={task}
+        timezone={timezone}
+        now={now}
         onEdit={() => setIsEditing(true)}
         onDelete={() => setIsDeleting(true)}
       />

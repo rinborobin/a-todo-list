@@ -34,6 +34,8 @@ export const logStudySessionSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   rating: StudyRating.nullable().optional(),
   note: z.string().trim().max(500, "Keep the note under 500 characters").nullable().optional(),
+  // Declared below, so referenced lazily.
+  topic: z.lazy(() => topicChoiceSchema).optional(),
 });
 
 export const rateSessionSchema = z.object({
@@ -58,3 +60,18 @@ export const subjectSetupSchema = z.object({
 });
 
 export type SubjectSetupInput = z.input<typeof subjectSetupSchema>;
+
+export const topicNameSchema = z.string().trim().min(1, "Name the topic").max(80, "Keep it under 80 characters");
+
+/** Either an existing topic, a new topic name, or null to clear. */
+export const topicChoiceSchema = z.union([
+  z.object({ topicId: z.string().min(1).nullable() }),
+  z.object({ newName: topicNameSchema }),
+]);
+
+export const setSessionTopicSchema = z.object({
+  sessionId: z.string().min(1),
+  choice: topicChoiceSchema,
+});
+
+export const renameTopicSchema = z.object({ id: z.string().min(1), name: topicNameSchema });

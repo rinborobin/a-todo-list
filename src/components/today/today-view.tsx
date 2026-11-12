@@ -21,6 +21,7 @@ interface TodayViewProps {
     suggestion: StudyNextSuggestion | null;
     running: RunningTimer | null;
     subjects: { id: string; name: string }[];
+    topics: { id: string; name: string; subjectId: string }[];
   };
 }
 
@@ -110,6 +111,7 @@ export function TodayView({ data, initialNow, study }: TodayViewProps) {
               timezone={timezone}
               now={now}
               live
+              topics={study.topics}
               onStatusChange={(id, status) => setStatuses((prev) => ({ ...prev, [id]: status }))}
             />
           )}

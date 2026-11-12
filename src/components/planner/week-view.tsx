@@ -25,6 +25,7 @@ interface WeekViewProps {
   startDate: string;
   endDate: string;
   now: Date;
+  topics: { id: string; name: string; subjectId: string }[];
 }
 
 function formatRange(start: string, end: string) {
@@ -36,7 +37,7 @@ function formatRange(start: string, end: string) {
     : `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short" })}`;
 }
 
-export function WeekView({ plans, loadError, timezone, today, startDate, endDate, now }: WeekViewProps) {
+export function WeekView({ plans, loadError, timezone, today, startDate, endDate, now, topics }: WeekViewProps) {
   const router = useRouter();
   const [pending, setPending] = useState<"plain" | "ai" | null>(null);
   const [, startTransition] = useTransition();
@@ -133,7 +134,7 @@ export function WeekView({ plans, loadError, timezone, today, startDate, endDate
                 {isToday && <span className="text-xs font-semibold uppercase tracking-[0.08em] text-accent">Today</span>}
               </h2>
               {items.length > 0 ? (
-                <DayRail items={items} timezone={timezone} now={now} live={isToday} />
+                <DayRail items={items} timezone={timezone} now={now} live={isToday} topics={topics} />
               ) : (
                 <p className="border-l border-line pl-6 text-sm text-faint">Nothing planned</p>
               )}

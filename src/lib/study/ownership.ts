@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { subject, task } from "@/db/schema";
+import { subject, task, topic } from "@/db/schema";
 import { UserFacingError } from "@/lib/error";
 
 /**
@@ -30,5 +30,15 @@ export async function ownTask(
     columns: { id: true, subjectId: true, estimatedMinutes: true },
   });
   if (!found) throw new UserFacingError("Task not found");
+  return found;
+}
+
+/** A topic the user owns, with its subject; throws for anything else. */
+export async function ownTopic(userId: string, topicId: string): Promise<{ id: string; subjectId: string }> {
+  const found = await db.query.topic.findFirst({
+    where: and(eq(topic.id, topicId), eq(topic.userId, userId)),
+    columns: { id: true, subjectId: true },
+  });
+  if (!found) throw new UserFacingError("Topic not found");
   return found;
 }

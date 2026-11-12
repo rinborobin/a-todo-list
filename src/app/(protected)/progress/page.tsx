@@ -71,6 +71,7 @@ export default async function ProgressPage() {
       subjectNames={subjectNames}
       taskTitles={study.taskTitles}
       activeSubjects={active.map(({ id, name }) => ({ id, name }))}
+      topics={study.topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
       suggestion={suggestion}
       running={running}
     />

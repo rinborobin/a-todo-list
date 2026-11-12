@@ -2,7 +2,7 @@ import { requireAuth } from "@/lib/session";
 import { getUserAvailabilityQuery, getUserTimezoneQuery } from "@/actions/availability";
 import { AvailabilityManager } from "@/components/availability/availability-manager";
 import { SignOutButton } from "@/components/shell/sign-out-button";
-import { listSubjectsQuery } from "@/actions/study";
+import { listSubjectsQuery, listTopicsQuery } from "@/actions/study";
 import { SubjectsManager } from "@/components/study/subjects-manager";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 
@@ -12,10 +12,11 @@ export const metadata = {
 
 export default async function MePage() {
   const session = await requireAuth("/me");
-  const [blocks, timezone, subjects] = await Promise.all([
+  const [blocks, timezone, subjects, topics] = await Promise.all([
     getUserAvailabilityQuery(),
     getUserTimezoneQuery(),
     listSubjectsQuery(),
+    listTopicsQuery(),
   ]);
 
   return (
@@ -30,7 +31,11 @@ export default async function MePage() {
       </div>
 
       <div className="mt-10">
-        <SubjectsManager initialSubjects={subjects} today={toLocalDateKey(new Date(), timezone)} />
+        <SubjectsManager
+          initialSubjects={subjects}
+          topics={topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
+          today={toLocalDateKey(new Date(), timezone)}
+        />
       </div>
 
       <section aria-labelledby="account-heading" className="mt-10">

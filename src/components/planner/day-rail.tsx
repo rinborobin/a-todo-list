@@ -7,6 +7,7 @@ import { updateScheduleItemStatusAction, type PlanWithItems } from "@/actions/pl
 import { describeDue, formatClock, formatDuration, formatStartsIn } from "@/lib/format";
 import { CheckIcon } from "@/components/ui/icons";
 import { RatingPicker } from "@/components/study/rating-picker";
+import { SessionTopicPicker } from "@/components/study/topic-picker";
 
 type Item = PlanWithItems["items"][number];
 type Status = Item["status"];
@@ -18,11 +19,13 @@ interface DayRailProps {
   /** Show the "now" marker and highlight the next block (only for today). */
   live?: boolean;
   onStatusChange?: (id: string, status: Status) => void;
+  /** Topics with their subject, offered after a block is ticked. */
+  topics?: { id: string; name: string; subjectId: string }[];
 }
 
 const FREE_GAP_MINUTES = 15;
 
-export function DayRail({ items, timezone, now, live = false, onStatusChange }: DayRailProps) {
+export function DayRail({ items, timezone, now, live = false, onStatusChange, topics = [] }: DayRailProps) {
   const router = useRouter();
   const [overrides, setOverrides] = useState<Record<string, Status>>({});
   const [error, setError] = useState<string | null>(null);
@@ -147,8 +150,15 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange }: 
                 </p>
 
                 {ratingPrompt?.itemId === item.id && isDone && (
-                  <div className="mt-2">
+                  <div className="mt-2 space-y-3">
                     <RatingPicker sessionId={ratingPrompt.sessionId} prompt onDone={() => setRatingPrompt(null)} />
+                    {item.task?.subjectId && (
+                      <SessionTopicPicker
+                        sessionId={ratingPrompt.sessionId}
+                        topics={topics.filter((t) => t.subjectId === item.task!.subjectId)}
+                        label="Topic covered (optional)"
+                      />
+                    )}
                   </div>
                 )}
               </li>

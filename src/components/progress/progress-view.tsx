@@ -28,6 +28,7 @@ interface ProgressViewProps {
   subjectNames: Record<string, string>;
   taskTitles: Record<string, string>;
   activeSubjects: { id: string; name: string }[];
+  topics: { id: string; name: string; subjectId: string }[];
   suggestion: StudyNextSuggestion | null;
   running: RunningTimer | null;
 }
@@ -188,7 +189,7 @@ export function ProgressView(props: ProgressViewProps) {
       </div>
 
       {logOpen && (
-        <LogStudyDialog open={logOpen} onClose={() => setLogOpen(false)} subjects={props.activeSubjects} today={today} />
+        <LogStudyDialog open={logOpen} onClose={() => setLogOpen(false)} subjects={props.activeSubjects} topics={props.topics} today={today} />
       )}
     </main>
   );

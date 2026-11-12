@@ -6,6 +6,7 @@ import { discardStudyTimerAction, setStudyGoalAction, stopStudyTimerAction, type
 import { GOAL_CHOICES, computeFocusTime, formatTimer } from "@/lib/study/focus-time";
 import { formatDuration } from "@/lib/format";
 import { RatingPicker } from "@/components/study/rating-picker";
+import { SessionTopicPicker } from "@/components/study/topic-picker";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { RollingDigits } from "./rolling-digits";
@@ -297,6 +298,8 @@ function FocusSession({
             sessionId={phase.sessionId}
             subject={data.subjectName}
             task={data.taskTitle}
+            topics={data.subjectId ? data.topics : null}
+            topicId={data.topicId}
             onDone={() => router.push("/today")}
           />
         ) : (
@@ -388,6 +391,8 @@ function Finished({
   sessionId,
   subject,
   task,
+  topics,
+  topicId,
   onDone,
 }: {
   minutes: number;
@@ -395,6 +400,9 @@ function Finished({
   sessionId: string;
   subject: string | null;
   task: string | null;
+  /** Null when the session has no subject (topics need one). */
+  topics: { id: string; name: string }[] | null;
+  topicId: string | null;
   onDone: () => void;
 }) {
   const [shown, setShown] = useState(0);
@@ -432,6 +440,11 @@ function Finished({
         <p className="text-sm text-muted">How did it go?</p>
         <RatingPicker sessionId={sessionId} />
       </div>
+      {topics && (
+        <div className="rise mt-6 w-full max-w-sm text-left" style={{ animationDelay: "0.55s" }}>
+          <SessionTopicPicker sessionId={sessionId} topics={topics} initialTopicId={topicId} />
+        </div>
+      )}
       <div className="rise mt-8 w-full" style={{ animationDelay: "0.6s" }}>
         <Button variant="primary" onClick={onDone} className="h-14 w-full text-base">
           Back to Today

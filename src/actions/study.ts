@@ -1,22 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { studySession, subject, task, user, type StudySession, type Subject, type Task } from "@/db/schema";
+import {
+  studySession,
+  subject,
+  task,
+  topic,
+  user,
+  type StudySession,
+  type Subject,
+  type Task,
+  type Topic,
+} from "@/db/schema";
 import { requireAuth } from "@/lib/session";
-import { safeErrorMessage } from "@/lib/error";
-import { ownSubjectId, ownTask } from "@/lib/study/ownership";
+import { UserFacingError, safeErrorMessage } from "@/lib/error";
+import { ownSubjectId, ownTask, ownTopic } from "@/lib/study/ownership";
 import { addDaysToDateKey, localDateTimeToUtc, toLocalDateKey } from "@/lib/scheduling/timezone";
 import {
   createSubjectSchema,
   logStudySessionSchema,
   rateSessionSchema,
   renameSubjectSchema,
+  renameTopicSchema,
   setGoalSchema,
+  setSessionTopicSchema,
   startTimerSchema,
   subjectSetupSchema,
+  type topicChoiceSchema,
 } from "@/lib/validations/study";
+import type { z } from "zod";
 import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
 import { summarizeStudy } from "@/lib/study/stats";
@@ -198,8 +212,12 @@ export interface FocusData {
   sessionId: string;
   startedAt: Date;
   plannedMinutes: number;
+  subjectId: string | null;
   subjectName: string | null;
   taskTitle: string | null;
+  topicId: string | null;
+  /** Active topics of the subject, most recently used first. */
+  topics: { id: string; name: string }[];
 }
 
 /** The running timer with the names the focus screen shows, or null. */
@@ -211,7 +229,7 @@ export async function getFocusQuery(): Promise<FocusData | null> {
   });
   if (!running) return null;
 
-  const [subjectRow, taskRow] = await Promise.all([
+  const [subjectRow, taskRow, subjectTopics] = await Promise.all([
     running.subjectId
       ? db.query.subject.findFirst({
           where: and(eq(subject.id, running.subjectId), eq(subject.userId, userId)),
@@ -224,14 +242,25 @@ export async function getFocusQuery(): Promise<FocusData | null> {
           columns: { title: true },
         })
       : null,
+    running.subjectId
+      ? db.query.topic.findMany({
+          where: and(eq(topic.subjectId, running.subjectId), eq(topic.userId, userId), isNull(topic.archivedAt)),
+          orderBy: [desc(topic.updatedAt)],
+          columns: { id: true, name: true },
+          limit: 12,
+        })
+      : [],
   ]);
 
   return {
     sessionId: running.id,
     startedAt: running.startedAt,
     plannedMinutes: running.plannedMinutes ?? defaultGoalMinutes(null),
+    subjectId: running.subjectId,
     subjectName: subjectRow?.name ?? null,
     taskTitle: taskRow?.title ?? null,
+    topicId: running.topicId,
+    topics: subjectTopics,
   };
 }
 
@@ -302,6 +331,7 @@ export async function logStudySessionAction(input: unknown): Promise<ActionResul
     const { minutes, date, rating, note } = parsed.data;
 
     const subjectId = await ownSubjectId(userId, parsed.data.subjectId);
+    const topicId = parsed.data.topic ? await resolveTopicChoice(userId, subjectId, parsed.data.topic) : null;
     const timezone = await userTimezone(userId);
     const now = new Date();
     const today = toLocalDateKey(now, timezone);
@@ -326,6 +356,7 @@ export async function logStudySessionAction(input: unknown): Promise<ActionResul
         source: "MANUAL",
         rating: rating ?? null,
         note: note || null,
+        topicId,
       })
       .returning();
     revalidateStudyViews();
@@ -369,6 +400,118 @@ export async function deleteStudySessionAction(id: string): Promise<ActionResult
   }
 }
 
+// ---------------------------------------------------------------- topics
+
+/**
+ * Turns a topic choice into a topic id for the given subject: an existing
+ * topic (must be the user's and in that subject), a new name (created, or the
+ * existing topic with that name reused and unarchived), or null.
+ */
+async function resolveTopicChoice(
+  userId: string,
+  subjectId: string | null,
+  choice: z.infer<typeof topicChoiceSchema>
+): Promise<string | null> {
+  if ("newName" in choice) {
+    if (!subjectId) throw new UserFacingError("Pick a subject first");
+    const existing = await db.query.topic.findFirst({
+      where: and(eq(topic.subjectId, subjectId), sql`lower(${topic.name}) = lower(${choice.newName})`),
+      columns: { id: true, userId: true },
+    });
+    if (existing) {
+      if (existing.userId !== userId) throw new UserFacingError("Topic not found");
+      await db.update(topic).set({ archivedAt: null, updatedAt: new Date() }).where(eq(topic.id, existing.id));
+      return existing.id;
+    }
+    const [created] = await db
+      .insert(topic)
+      .values({ userId, subjectId, name: choice.newName })
+      .returning({ id: topic.id });
+    return created.id;
+  }
+
+  if (choice.topicId === null) return null;
+  const owned = await ownTopic(userId, choice.topicId);
+  if (owned.subjectId !== subjectId) throw new UserFacingError("That topic belongs to another subject");
+  // Recently used topics are offered first.
+  await db.update(topic).set({ updatedAt: new Date() }).where(eq(topic.id, owned.id));
+  return owned.id;
+}
+
+export async function listTopicsQuery(): Promise<Topic[]> {
+  const session = await requireAuth();
+  return db.query.topic.findMany({
+    where: eq(topic.userId, session.user.id),
+    orderBy: [desc(topic.updatedAt)],
+  });
+}
+
+/** Records what a finished session covered. */
+export async function setSessionTopicAction(
+  input: unknown
+): Promise<ActionResult<{ topicId: string | null; topicName: string | null }>> {
+  try {
+    const session = await requireAuth();
+    const userId = session.user.id;
+    const parsed = setSessionTopicSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the topic" };
+
+    const studied = await db.query.studySession.findFirst({
+      where: and(eq(studySession.id, parsed.data.sessionId), eq(studySession.userId, userId)),
+      columns: { id: true, subjectId: true },
+    });
+    if (!studied) return { success: false, error: "Session not found" };
+
+    const topicId = await resolveTopicChoice(userId, studied.subjectId, parsed.data.choice);
+    await db
+      .update(studySession)
+      .set({ topicId })
+      .where(and(eq(studySession.id, studied.id), eq(studySession.userId, userId)));
+
+    const named = topicId ? await db.query.topic.findFirst({ where: eq(topic.id, topicId), columns: { name: true } }) : null;
+    revalidateStudyViews();
+    return { success: true, data: { topicId, topicName: named?.name ?? null } };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { success: false, error: "That topic already exists" };
+    return { success: false, error: safeErrorMessage(err, "Could not save the topic") };
+  }
+}
+
+export async function renameTopicAction(input: unknown): Promise<ActionResult<Topic>> {
+  try {
+    const session = await requireAuth();
+    const parsed = renameTopicSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
+    const [updated] = await db
+      .update(topic)
+      .set({ name: parsed.data.name, updatedAt: new Date() })
+      .where(and(eq(topic.id, parsed.data.id), eq(topic.userId, session.user.id)))
+      .returning();
+    if (!updated) return { success: false, error: "Topic not found" };
+    revalidateStudyViews();
+    return { success: true, data: updated };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { success: false, error: "That subject already has a topic with that name" };
+    return { success: false, error: safeErrorMessage(err, "Could not rename the topic") };
+  }
+}
+
+export async function archiveTopicAction(id: string, archived = true): Promise<ActionResult<Topic>> {
+  try {
+    const session = await requireAuth();
+    const [updated] = await db
+      .update(topic)
+      .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
+      .where(and(eq(topic.id, id), eq(topic.userId, session.user.id)))
+      .returning();
+    if (!updated) return { success: false, error: "Topic not found" };
+    revalidateStudyViews();
+    return { success: true, data: updated };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not update the topic") };
+  }
+}
+
 // ---------------------------------------------------------------- shared context
 
 export interface StudyContext {
@@ -381,15 +524,18 @@ export interface StudyContext {
   openTasks: Task[];
   /** Titles of tasks referenced by the sessions, including finished ones. */
   taskTitles: Record<string, string>;
+  /** All topics, most recently used first. */
+  topics: Topic[];
 }
 
 /** Everything the Today "Study next" line and the Progress screen need. */
 export async function getStudyContextQuery(): Promise<StudyContext> {
   const session = await requireAuth();
   const userId = session.user.id;
-  const since = new Date(Date.now() - 30 * 86_400_000);
+  // A year of history: the memory model replays it to know what is due.
+  const since = new Date(Date.now() - 365 * 86_400_000);
 
-  const [timezone, subjects, sessions, running, openTasks] = await Promise.all([
+  const [timezone, subjects, sessions, running, openTasks, topics] = await Promise.all([
     userTimezone(userId),
     db.query.subject.findMany({ where: eq(subject.userId, userId), orderBy: [asc(subject.name)] }),
     db.query.studySession.findMany({
@@ -403,6 +549,7 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
       where: and(eq(task.userId, userId), or(eq(task.status, "TODO"), eq(task.status, "IN_PROGRESS"))),
       orderBy: [asc(task.deadline)],
     }),
+    db.query.topic.findMany({ where: eq(topic.userId, userId), orderBy: [desc(topic.updatedAt)] }),
   ]);
 
   const sessionTaskIds = [...new Set(sessions.map((s) => s.taskId).filter((id): id is string => id !== null))];
@@ -415,7 +562,7 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
       : [];
   const taskTitles = Object.fromEntries(sessionTasks.map((t) => [t.id, t.title]));
 
-  return { timezone, subjects, sessions, running: running ?? null, openTasks, taskTitles };
+  return { timezone, subjects, sessions, running: running ?? null, openTasks, taskTitles, topics };
 }
 
 // ---------------------------------------------------------------- AI suggestion

@@ -8,10 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
 import { SubjectSetupFields, describeSetup } from "./subject-setup-fields";
+import { TopicList } from "./topic-list";
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
-export function SubjectsManager({ initialSubjects, today }: { initialSubjects: Subject[]; today: string }) {
+export function SubjectsManager({
+  initialSubjects,
+  topics,
+  today,
+}: {
+  initialSubjects: Subject[];
+  topics: { id: string; name: string; subjectId: string }[];
+  today: string;
+}) {
   const router = useRouter();
   const [subjects, setSubjects] = useState(initialSubjects);
   const [newName, setNewName] = useState("");
@@ -144,6 +153,9 @@ export function SubjectsManager({ initialSubjects, today }: { initialSubjects: S
                       }}
                       today={today}
                     />
+                    <div className="mt-5">
+                      <TopicList topics={topics.filter((t) => t.subjectId === s.id)} />
+                    </div>
                   </div>
                 )}
               </li>

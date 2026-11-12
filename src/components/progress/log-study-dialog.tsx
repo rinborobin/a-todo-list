@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { logStudySessionAction } from "@/actions/study";
 import type { StudyRating } from "@/db/schema";
 import { RATING_LABEL } from "@/lib/study/labels";
+import { TopicChips } from "@/components/study/topic-picker";
 import { addDaysToDateKey } from "@/lib/scheduling/timezone";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -14,6 +15,7 @@ interface LogStudyDialogProps {
   open: boolean;
   onClose: () => void;
   subjects: { id: string; name: string }[];
+  topics: { id: string; name: string; subjectId: string }[];
   today: string;
 }
 
@@ -23,7 +25,7 @@ const RATINGS: StudyRating[] = ["STRUGGLED", "OK", "GOT_IT"];
 const chip = (active: boolean) =>
   `h-9 flex-1 rounded-lg text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-paper text-ink-soft hover:bg-line"}`;
 
-export function LogStudyDialog({ open, onClose, subjects, today }: LogStudyDialogProps) {
+export function LogStudyDialog({ open, onClose, subjects, topics, today }: LogStudyDialogProps) {
   const router = useRouter();
   const yesterday = addDaysToDateKey(today, -1);
   const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? "");
@@ -31,6 +33,8 @@ export function LogStudyDialog({ open, onClose, subjects, today }: LogStudyDialo
   const [date, setDate] = useState(today);
   const [rating, setRating] = useState<StudyRating | null>(null);
   const [note, setNote] = useState("");
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const [newTopic, setNewTopic] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -44,6 +48,7 @@ export function LogStudyDialog({ open, onClose, subjects, today }: LogStudyDialo
       date,
       rating,
       note: note.trim() || null,
+      topic: newTopic ? { newName: newTopic } : topicId ? { topicId } : undefined,
     });
     setIsSaving(false);
     if (!result.success) {
@@ -60,7 +65,15 @@ export function LogStudyDialog({ open, onClose, subjects, today }: LogStudyDialo
         {error && <ErrorNote>{error}</ErrorNote>}
 
         <Field label="Subject" htmlFor="log-subject">
-          <Select id="log-subject" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+          <Select
+            id="log-subject"
+            value={subjectId}
+            onChange={(e) => {
+              setSubjectId(e.target.value);
+              setTopicId(null);
+              setNewTopic(null);
+            }}
+          >
             {subjects.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -100,6 +113,23 @@ export function LogStudyDialog({ open, onClose, subjects, today }: LogStudyDialo
           </div>
           <Input id="log-date" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
+
+        {subjectId && (
+          <TopicChips
+            topics={topics.filter((t) => t.subjectId === subjectId)}
+            selectedId={topicId}
+            pendingName={newTopic}
+            label="Topic covered (optional)"
+            onSelect={(id) => {
+              setTopicId(id);
+              setNewTopic(null);
+            }}
+            onCreate={(name) => {
+              setNewTopic(name);
+              setTopicId(null);
+            }}
+          />
+        )}
 
         <fieldset>
           <legend className="mb-1.5 text-[13px] font-medium text-ink-soft">How did it go? (optional)</legend>

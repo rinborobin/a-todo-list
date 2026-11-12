@@ -17,6 +17,7 @@ export default async function TodayPage() {
   const suggestion =
     rankStudyNext({
       subjects: activeSubjects,
+      topics: study.topics,
       openTasks: study.openTasks,
       sessions: study.sessions,
       now,
@@ -40,6 +41,9 @@ export default async function TodayPage() {
         suggestion,
         running,
         subjects: activeSubjects.map(({ id, name }) => ({ id, name })),
+        topics: study.topics
+          .filter((t) => !t.archivedAt)
+          .map(({ id, name, subjectId }) => ({ id, name, subjectId })),
       }}
     />
   );

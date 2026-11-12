@@ -169,6 +169,7 @@ export function ProgressView(props: ProgressViewProps) {
             running={props.running}
             subjects={props.activeSubjects}
             initialNow={initialNow}
+            timezone={timezone}
           />
           {props.activeSubjects.length > 0 && !props.running && (
             <div className="pl-4">

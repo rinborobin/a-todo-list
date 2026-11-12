@@ -26,12 +26,14 @@ import {
   renameTopicSchema,
   setGoalSchema,
   setSessionTopicSchema,
+  planStudyBlockSchema,
   startTimerSchema,
   subjectSetupSchema,
   type topicChoiceSchema,
 } from "@/lib/validations/study";
 import type { z } from "zod";
 import { defaultGoalMinutes } from "@/lib/study/focus-time";
+import { quickAddTaskAction, replanWeekAction } from "@/actions/planner";
 import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
 import { summarizeStudy } from "@/lib/study/stats";
 import { suggestStudyNextWithAi } from "@/lib/ai/study-next";
@@ -166,6 +168,12 @@ export async function startStudyTimerAction(input: unknown): Promise<ActionResul
 
     const ownedTask = await ownTask(userId, parsed.data.taskId);
     const subjectId = (await ownSubjectId(userId, parsed.data.subjectId)) ?? ownedTask?.subjectId ?? null;
+    let topicId: string | null = null;
+    if (parsed.data.topicId) {
+      const owned = await ownTopic(userId, parsed.data.topicId);
+      if (owned.subjectId !== subjectId) throw new UserFacingError("That topic belongs to another subject");
+      topicId = owned.id;
+    }
 
     const [created] = await db
       .insert(studySession)
@@ -173,6 +181,7 @@ export async function startStudyTimerAction(input: unknown): Promise<ActionResul
         userId,
         subjectId,
         taskId: ownedTask?.id ?? null,
+        topicId,
         startedAt: new Date(),
         endedAt: null,
         minutes: 0,
@@ -509,6 +518,89 @@ export async function archiveTopicAction(id: string, archived = true): Promise<A
     return { success: true, data: updated };
   } catch (err) {
     return { success: false, error: safeErrorMessage(err, "Could not update the topic") };
+  }
+}
+
+// ---------------------------------------------------------------- add to my plan
+
+export interface PlannedStudyBlock {
+  title: string;
+  plannedAt: Date | null;
+  notPlannedReason: string | null;
+  /** True when an open task with the same title already existed and was reused. */
+  reused: boolean;
+}
+
+/**
+ * "Add to my plan": turns a study suggestion into a task (e.g. "Review:
+ * Calculus · Limits") due by the end of its review day, then plans the week so
+ * it lands in free time. Reuses an open task with the same title instead of
+ * creating duplicates.
+ */
+export async function planStudyBlockAction(input: unknown): Promise<ActionResult<PlannedStudyBlock>> {
+  try {
+    const session = await requireAuth();
+    const userId = session.user.id;
+    const parsed = planStudyBlockSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
+    const { minutes, reviewOn } = parsed.data;
+
+    const subjectId = (await ownSubjectId(userId, parsed.data.subjectId))!;
+    const subjectRow = await db.query.subject.findFirst({ where: eq(subject.id, subjectId), columns: { name: true } });
+    let topicName: string | null = null;
+    if (parsed.data.topicId) {
+      const owned = await ownTopic(userId, parsed.data.topicId);
+      if (owned.subjectId !== subjectId) throw new UserFacingError("That topic belongs to another subject");
+      topicName = (await db.query.topic.findFirst({ where: eq(topic.id, owned.id), columns: { name: true } }))?.name ?? null;
+    }
+    const title = topicName ? `Review: ${subjectRow!.name} · ${topicName}` : `Study: ${subjectRow!.name}`;
+
+    const timezone = await userTimezone(userId);
+    const today = toLocalDateKey(new Date(), timezone);
+    const dueDay = reviewOn && reviewOn >= today ? reviewOn : addDaysToDateKey(today, 1);
+    const deadline = localDateTimeToUtc(dueDay, "23:59", timezone);
+
+    const existing = await db.query.task.findFirst({
+      where: and(
+        eq(task.userId, userId),
+        eq(task.title, title),
+        or(eq(task.status, "TODO"), eq(task.status, "IN_PROGRESS"))
+      ),
+      columns: { id: true },
+    });
+
+    if (existing) {
+      const replanned = await replanWeekAction();
+      const plannedAt = replanned.success
+        ? (replanned.data.scheduled.find((s) => s.taskId === existing.id)?.startTime ?? null)
+        : null;
+      return {
+        success: true,
+        data: {
+          title,
+          plannedAt,
+          notPlannedReason: plannedAt ? null : replanned.success ? "No free slot before it is due" : replanned.error,
+          reused: true,
+        },
+      };
+    }
+
+    const added = await quickAddTaskAction({
+      title,
+      priority: "MEDIUM",
+      status: "TODO",
+      estimatedMinutes: minutes,
+      deadline: deadline.toISOString(),
+      subjectId,
+    });
+    if (!added.success) return { success: false, error: added.error };
+    revalidateStudyViews();
+    return {
+      success: true,
+      data: { title, plannedAt: added.data.plannedAt, notPlannedReason: added.data.notPlannedReason, reused: false },
+    };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not add it to your plan") };
   }
 }
 

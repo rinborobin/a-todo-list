@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { startStudyTimerAction, stopStudyTimerAction } from "@/actions/study";
+import { planStudyBlockAction, startStudyTimerAction, stopStudyTimerAction } from "@/actions/study";
 import type { StudyNextSuggestion } from "@/lib/study/next";
 import { defaultGoalMinutes } from "@/lib/study/focus-time";
-import { formatDuration } from "@/lib/format";
+import { describeDue, formatDuration } from "@/lib/format";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { RatingPicker } from "./rating-picker";
 import { useMinuteClock } from "./use-minute-clock";
@@ -23,6 +23,7 @@ interface StudyNowProps {
   running: RunningTimer | null;
   subjects: { id: string; name: string }[];
   initialNow: Date;
+  timezone: string;
 }
 
 const label = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
@@ -31,7 +32,7 @@ const label = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
  * "Study next" suggestion with a one-tap timer. While a timer runs it shows the
  * elapsed time; after stopping it asks how the session went.
  */
-export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNowProps) {
+export function StudyNow({ suggestion, running, subjects, initialNow, timezone }: StudyNowProps) {
   const router = useRouter();
   const now = useMinuteClock(initialNow);
   const [isPending, startTransition] = useTransition();
@@ -39,15 +40,49 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
   const [finished, setFinished] = useState<{ sessionId: string; minutes: number; note: string | null } | null>(null);
   // Origin of the shade that floods the screen when Start is tapped.
   const [flood, setFlood] = useState<{ x: number; y: number } | null>(null);
+  // Result of "Add to my plan", shown under the buttons.
+  const [planned, setPlanned] = useState<string | null>(null);
+  const [isPlanning, startPlanning] = useTransition();
+
+  const addToPlan = (s: StudyNextSuggestion) => {
+    setError(null);
+    setPlanned(null);
+    startPlanning(async () => {
+      const result = await planStudyBlockAction({
+        subjectId: s.subjectId,
+        topicId: s.topicId,
+        minutes: s.minutes,
+        reviewOn: s.reviewOn,
+      });
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      const { plannedAt, notPlannedReason, reused } = result.data;
+      setPlanned(
+        plannedAt
+          ? `${reused ? "Already in your plan" : "Planned"} ${describeDue(plannedAt, new Date(), timezone).label}.`
+          : `Added to your tasks. Not planned yet: ${(notPlannedReason ?? "no free time").toLowerCase()}.`
+      );
+      router.refresh();
+    });
+  };
 
   /**
    * Starts the timer and opens the focus screen. The flood animation and the
    * save run at the same time, so the focus screen is ready as the shade
    * covers the page; if saving fails the shade lifts and the error shows.
    */
-  const start = (subjectId: string | null, taskId: string | null, plannedMinutes: number, origin?: HTMLElement | null) => {
+  const start = (
+    subjectId: string | null,
+    taskId: string | null,
+    plannedMinutes: number,
+    origin?: HTMLElement | null,
+    topicId: string | null = null
+  ) => {
     setError(null);
     setFinished(null);
+    setPlanned(null);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (origin && !reduceMotion) {
       const rect = origin.getBoundingClientRect();
@@ -55,7 +90,7 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
     }
     startTransition(async () => {
       const [result] = await Promise.all([
-        startStudyTimerAction({ subjectId, taskId, plannedMinutes }),
+        startStudyTimerAction({ subjectId, taskId, topicId, plannedMinutes }),
         new Promise((resolve) => setTimeout(resolve, reduceMotion ? 0 : 520)),
       ]);
       if (!result.success) {
@@ -151,7 +186,8 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
         <>
           <p className="mt-1 text-[15px]">
             <span className="font-semibold">{suggestion.subjectName}</span>
-            {suggestion.taskTitle && <span className="text-ink-soft"> · {suggestion.taskTitle}</span>}
+            {suggestion.topicName && <span className="font-semibold"> · {suggestion.topicName}</span>}
+            {!suggestion.topicName && suggestion.taskTitle && <span className="text-ink-soft"> · {suggestion.taskTitle}</span>}
             <span className="text-muted"> · {formatDuration(suggestion.minutes)}</span>
           </p>
           {suggestion.reason && <p className="text-[13px] text-muted">{suggestion.reason}</p>}
@@ -162,14 +198,27 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {suggestion && (
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={isPending}
-            onClick={(e) => start(suggestion.subjectId, suggestion.taskId, defaultGoalMinutes(suggestion.minutes), e.currentTarget)}
-          >
-            {isPending ? "Starting…" : "Start"}
-          </Button>
+          <>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isPending || isPlanning}
+              onClick={(e) =>
+                start(
+                  suggestion.subjectId,
+                  suggestion.taskId,
+                  defaultGoalMinutes(suggestion.minutes),
+                  e.currentTarget,
+                  suggestion.topicId
+                )
+              }
+            >
+              {isPending ? "Starting…" : "Start"}
+            </Button>
+            <Button size="sm" disabled={isPending || isPlanning} onClick={() => addToPlan(suggestion)}>
+              {isPlanning ? "Planning…" : "Add to my plan"}
+            </Button>
+          </>
         )}
         <label htmlFor="study-other" className="sr-only">
           Study another subject
@@ -189,6 +238,11 @@ export function StudyNow({ suggestion, running, subjects, initialNow }: StudyNow
           ))}
         </select>
       </div>
+      {planned && (
+        <p className="rise mt-2 text-[13px] text-ink-soft" role="status">
+          {planned}
+        </p>
+      )}
       {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
     </section>
   );

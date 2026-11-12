@@ -74,6 +74,7 @@ export function TodayView({ data, initialNow, study }: TodayViewProps) {
             running={study.running}
             subjects={study.subjects}
             initialNow={initialNow}
+            timezone={timezone}
           />
         </div>
 

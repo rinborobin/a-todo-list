@@ -19,6 +19,7 @@ const goalMinutes = z.number().int().min(5, "At least 5 minutes").max(480, "At m
 export const startTimerSchema = z.object({
   subjectId: optionalId,
   taskId: optionalId,
+  topicId: optionalId,
   plannedMinutes: goalMinutes.optional(),
 });
 
@@ -75,3 +76,15 @@ export const setSessionTopicSchema = z.object({
 });
 
 export const renameTopicSchema = z.object({ id: z.string().min(1), name: topicNameSchema });
+
+export const planStudyBlockSchema = z.object({
+  subjectId: z.string().min(1),
+  topicId: z.string().min(1).nullable().optional(),
+  minutes: z.number().int().min(15).max(180),
+  /** YYYY-MM-DD the review is due; the block is planned before the end of it. */
+  reviewOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+});

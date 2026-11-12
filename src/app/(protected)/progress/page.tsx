@@ -46,8 +46,14 @@ export default async function ProgressPage() {
 
   const subjectNames = Object.fromEntries(study.subjects.map((s) => [s.id, s.name]));
   const suggestion =
-    rankStudyNext({ subjects: active, openTasks: study.openTasks, sessions: study.sessions, now, timezone })[0] ??
-    null;
+    rankStudyNext({
+      subjects: active,
+      topics: study.topics,
+      openTasks: study.openTasks,
+      sessions: study.sessions,
+      now,
+      timezone,
+    })[0] ?? null;
   const running = study.running
     ? {
         id: study.running.id,

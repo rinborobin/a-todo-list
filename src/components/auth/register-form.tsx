@@ -52,7 +52,12 @@ export function RegisterForm({ callbackUrl = "/today" }: RegisterFormProps) {
       const response = await signUp.email({ name, email, password });
 
       if (response.error) {
-        setError(response.error.message || "Could not create the account. Try again.");
+        const closed = response.error.code === "signup_closed" || response.error.message?.includes("signup_closed");
+        setError(
+          closed
+            ? "Sign-ups are closed for this planner."
+            : response.error.message || "Could not create the account. Try again."
+        );
         setIsLoading(false);
         return;
       }

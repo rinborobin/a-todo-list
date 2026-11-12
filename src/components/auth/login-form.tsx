@@ -11,9 +11,10 @@ import { ErrorNote, Field, Input } from "@/components/ui/field";
 
 interface LoginFormProps {
   callbackUrl?: string;
+  notice?: string | null;
 }
 
-export function LoginForm({ callbackUrl = "/today" }: LoginFormProps) {
+export function LoginForm({ callbackUrl = "/today", notice = null }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +63,12 @@ export function LoginForm({ callbackUrl = "/today" }: LoginFormProps) {
     <div>
       <h1 className="font-serif text-[32px] leading-tight">Sign in</h1>
       <p className="mt-1 text-sm text-muted">To see today&apos;s plan and what is due.</p>
+
+      {notice && (
+        <div className="mt-6">
+          <ErrorNote>{notice}</ErrorNote>
+        </div>
+      )}
 
       <div className="mt-8">
         <GoogleSignInButton callbackUrl={callbackUrl} />

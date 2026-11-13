@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -6,13 +7,15 @@ import { UserFacingError } from "@/lib/error";
 
 /**
  * Retrieves the current session on the server side using the incoming request headers.
+ * Memoized per request: the layout, the page and every query can call it
+ * without each paying for a lookup.
  */
-export async function getSession() {
+export const getSession = cache(async () => {
   const headerList = await headers();
   return await auth.api.getSession({
     headers: headerList,
   });
-}
+});
 
 /**
  * Retrieves the authenticated user object or null if not authenticated.

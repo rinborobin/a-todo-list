@@ -37,6 +37,15 @@ export const auth = betterAuth({
       }
     },
   },
+  session: {
+    // Keep a signed copy of the session in a cookie for 5 minutes so most
+    // requests need no session query. Signing out clears it immediately; a
+    // session revoked from another device stays valid until it expires.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
   // Rate limits (on in production) are counted in the database so they hold
   // across serverless instances; in memory each instance would count alone.
   rateLimit: {

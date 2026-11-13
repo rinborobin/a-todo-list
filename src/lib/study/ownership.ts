@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { subject, task, topic } from "@/db/schema";
+import { milestone, subject, task, topic } from "@/db/schema";
 import { UserFacingError } from "@/lib/error";
 
 /**
@@ -41,4 +41,29 @@ export async function ownTopic(userId: string, topicId: string): Promise<{ id: s
   });
   if (!found) throw new UserFacingError("Topic not found");
   return found;
+}
+
+/** A milestone the user owns, with its project; throws for anything else. */
+export async function ownMilestone(userId: string, milestoneId: string): Promise<{ id: string; subjectId: string }> {
+  const found = await db.query.milestone.findFirst({
+    where: and(eq(milestone.id, milestoneId), eq(milestone.userId, userId)),
+    columns: { id: true, subjectId: true },
+  });
+  if (!found) throw new UserFacingError("Milestone not found");
+  return found;
+}
+
+/**
+ * The milestone id to store on a task: null when none is given, otherwise a
+ * milestone the user owns that belongs to the task's own project.
+ */
+export async function ownTaskMilestoneId(
+  userId: string,
+  milestoneId: string | null | undefined,
+  subjectId: string | null
+): Promise<string | null> {
+  if (!milestoneId) return null;
+  const found = await ownMilestone(userId, milestoneId);
+  if (found.subjectId !== subjectId) throw new UserFacingError("That milestone belongs to another project");
+  return found.id;
 }

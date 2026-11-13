@@ -18,6 +18,7 @@ export default async function TodayPage() {
     rankStudyNext({
       subjects: activeSubjects,
       topics: study.topics,
+      milestones: study.milestones,
       openTasks: study.openTasks,
       sessions: study.sessions,
       now,

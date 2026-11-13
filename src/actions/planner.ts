@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { dailyPlan, scheduleItem, studySession, task, availability, user } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
 import { safeErrorMessage } from "@/lib/error";
-import { ownSubjectId } from "@/lib/study/ownership";
+import { ownSubjectId, ownTaskMilestoneId } from "@/lib/study/ownership";
 import {
   generatePlanSchema,
   updateScheduleItemStatusSchema,
@@ -844,12 +844,14 @@ export async function quickAddTaskAction(input: unknown): Promise<ActionResult<Q
     }
 
     const subjectId = await ownSubjectId(session.user.id, parsed.data.subjectId);
+    const milestoneId = await ownTaskMilestoneId(session.user.id, parsed.data.milestoneId, subjectId);
 
     const [created] = await db
       .insert(task)
       .values({
         userId: session.user.id,
         subjectId,
+        milestoneId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
         priority: parsed.data.priority,

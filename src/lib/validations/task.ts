@@ -40,6 +40,7 @@ export const createTaskSchema = z.object({
   estimatedMinutes: estimatedMinutesSchema,
   deadline: deadlineSchema,
   subjectId: z.string().min(1).nullable().optional(),
+  milestoneId: z.string().min(1).nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -61,6 +62,7 @@ export const updateTaskSchema = z.object({
   estimatedMinutes: estimatedMinutesSchema,
   deadline: deadlineSchema,
   subjectId: z.string().min(1).nullable().optional(),
+  milestoneId: z.string().min(1).nullable().optional(),
 });
 
 export const taskFilterSchema = z.object({

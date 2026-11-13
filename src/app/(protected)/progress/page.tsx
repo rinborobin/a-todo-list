@@ -50,6 +50,7 @@ export default async function ProgressPage() {
     rankStudyNext({
       subjects: active,
       topics: study.topics,
+      milestones: study.milestones,
       openTasks: study.openTasks,
       sessions: study.sessions,
       now,

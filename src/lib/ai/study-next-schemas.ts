@@ -13,8 +13,26 @@ export interface StudyNextAiContext {
   subjects: {
     id: string;
     name: string;
+    /** CLASS, PROJECT (side project) or SELF_LEARNING. Missing means CLASS. */
+    kind?: "CLASS" | "PROJECT" | "SELF_LEARNING";
     confidence?: "WEAK" | "OK" | "STRONG" | null;
+    /** Classes only. */
     examDate?: string | null;
+    /** Self-learning only: when they want to be done. */
+    targetDate?: string | null;
+    /** Self-learning with a days-a-week target, e.g. "2 of 5 days this week", "keep your 4-day streak". */
+    practice?: string | null;
+    /** Self-learning: the book or course and where they are in it. */
+    resource?: { name: string | null; progress: string; next: string | null } | null;
+    /** Side projects: milestones in order; "current" is the one being worked on. */
+    milestones?: {
+      name: string;
+      targetDate: string | null;
+      done: boolean;
+      current: boolean;
+      tasksDone: number;
+      tasksTotal: number;
+    }[];
     weeklyGoalMinutes?: number | null;
     minutesLast7Days: number;
     daysSinceLastStudied: number | null;
@@ -31,7 +49,14 @@ export interface StudyNextAiContext {
       nextReviewOn: string | null;
       dueForReview: boolean;
     }[];
-    openTasks: { id: string; title: string; deadline: string | null; estimatedMinutes: number | null }[];
+    openTasks: {
+      id: string;
+      title: string;
+      deadline: string | null;
+      estimatedMinutes: number | null;
+      /** Side projects: the milestone the task belongs to. */
+      milestone?: string | null;
+    }[];
   }[];
 }
 

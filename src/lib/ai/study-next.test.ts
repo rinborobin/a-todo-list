@@ -123,3 +123,60 @@ describe("suggestStudyNextWithAi", () => {
     assert.equal(called, false);
   });
 });
+
+describe("study coach with side projects and self-learning", () => {
+  const mixed: StudyNextAiContext = {
+    ...context,
+    subjects: [
+      ...context.subjects,
+      {
+        id: "site",
+        name: "Portfolio site",
+        kind: "PROJECT",
+        minutesLast7Days: 0,
+        daysSinceLastStudied: 6,
+        latestRating: null,
+        milestones: [{ name: "MVP", targetDate: "2026-11-21", done: false, current: true, tasksDone: 2, tasksTotal: 5 }],
+        openTasks: [{ id: "login", title: "Build login page", deadline: null, estimatedMinutes: 90, milestone: "MVP" }],
+      },
+      {
+        id: "jp",
+        name: "Japanese",
+        kind: "SELF_LEARNING",
+        minutesLast7Days: 60,
+        daysSinceLastStudied: 1,
+        latestRating: "OK",
+        practice: "keep your 4-day streak",
+        resource: { name: "Genki I", progress: "Lesson 18 of 40", next: "Lesson 19 of 40" },
+        openTasks: [],
+      },
+    ],
+  };
+
+  it("accepts a project's own next task", () => {
+    assert.equal(validateStudyNext(parse(output({ subjectId: "site", topicId: null, taskId: "login" })), mixed).valid, true);
+  });
+
+  it("rejects a project pointing at a class task", () => {
+    assert.equal(validateStudyNext(parse(output({ subjectId: "site", topicId: null, taskId: "ps4" })), mixed).valid, false);
+  });
+
+  it("accepts self-learning with no topic and no task (the next lesson)", () => {
+    assert.equal(validateStudyNext(parse(output({ subjectId: "jp", topicId: null, taskId: null })), mixed).valid, true);
+  });
+
+  it("sends kinds, milestones, streaks and resources to the model, and states the balance rule", async () => {
+    let sent: { system?: string; prompt?: string } = {};
+    const spy = (async (args: { system: string; prompt: string }) => {
+      sent = args;
+      return { output: output({ subjectId: "site", topicId: null, taskId: "login" }) };
+    }) as unknown as typeof generateText;
+    const result = await suggestStudyNextWithAi(mixed, spy, fakeModel);
+    assert.equal(result?.taskId, "login");
+    assert.match(sent.system ?? "", /Classes first when urgent/);
+    assert.match(sent.prompt ?? "", /"kind": "PROJECT"/);
+    assert.match(sent.prompt ?? "", /"current": true/);
+    assert.match(sent.prompt ?? "", /keep your 4-day streak/);
+    assert.match(sent.prompt ?? "", /Lesson 19 of 40/);
+  });
+});

@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  milestone,
   studySession,
   subject,
   task,
   topic,
   user,
+  type Milestone,
   type StudySession,
   type Subject,
   type Task,
@@ -16,10 +18,13 @@ import {
 } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
 import { UserFacingError, safeErrorMessage } from "@/lib/error";
-import { ownSubjectId, ownTask, ownTopic } from "@/lib/study/ownership";
+import { ownMilestone, ownSubjectId, ownTask, ownTopic } from "@/lib/study/ownership";
 import { addDaysToDateKey, localDateTimeToUtc, toLocalDateKey } from "@/lib/scheduling/timezone";
 import {
+  advanceResourceSchema,
+  createMilestoneSchema,
   createSubjectSchema,
+  updateMilestoneSchema,
   logStudySessionSchema,
   rateSessionSchema,
   renameSubjectSchema,
@@ -39,6 +44,8 @@ import { summarizeStudy } from "@/lib/study/stats";
 import { replayMemory, reviewStatus } from "@/lib/study/memory";
 import { estimateRatio, typicalMinutes, usualHours } from "@/lib/study/habits";
 import { suggestStudyNextWithAi } from "@/lib/ai/study-next";
+import { currentMilestone, milestoneProgress, resourceProgress } from "@/lib/study/progress";
+import { describeStreak, practiceStreak } from "@/lib/study/streak";
 import type { StudyNextAiContext } from "@/lib/ai/study-next-schemas";
 
 export type ActionResult<T = unknown> = { success: true; data: T } | { success: false; error: string };
@@ -83,7 +90,7 @@ export async function createSubjectAction(input: unknown): Promise<ActionResult<
 
     const [created] = await db
       .insert(subject)
-      .values({ userId: session.user.id, name: parsed.data.name })
+      .values({ userId: session.user.id, name: parsed.data.name, kind: parsed.data.kind ?? "CLASS" })
       .returning();
     revalidateStudyViews();
     return { success: true, data: created };
@@ -114,8 +121,9 @@ export async function renameSubjectAction(input: unknown): Promise<ActionResult<
 }
 
 /**
- * Saves what the student told us about a subject during setup: confidence,
- * exam date and weekly goal. Only the fields that are sent are changed.
+ * Saves what the student told us about a subject during setup: its kind,
+ * confidence, exam or target date, weekly goal, practice days and the book or
+ * course being worked through. Only the fields that are sent are changed.
  */
 export async function updateSubjectSetupAction(input: unknown): Promise<ActionResult<Subject>> {
   try {
@@ -124,10 +132,26 @@ export async function updateSubjectSetupAction(input: unknown): Promise<ActionRe
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
     const { id, ...fields } = parsed.data;
 
+    const existing = await db.query.subject.findFirst({
+      where: and(eq(subject.id, id), eq(subject.userId, session.user.id)),
+      columns: { resourceTotal: true, resourceDone: true },
+    });
+    if (!existing) return { success: false, error: "Subject not found" };
+
     const changes: Partial<typeof subject.$inferInsert> = { updatedAt: new Date() };
+    if (fields.kind !== undefined) changes.kind = fields.kind;
     if (fields.confidence !== undefined) changes.confidence = fields.confidence;
     if (fields.examDate !== undefined) changes.examDate = fields.examDate;
     if (fields.weeklyGoalMinutes !== undefined) changes.weeklyGoalMinutes = fields.weeklyGoalMinutes;
+    if (fields.practiceDaysPerWeek !== undefined) changes.practiceDaysPerWeek = fields.practiceDaysPerWeek;
+    if (fields.resourceName !== undefined) changes.resourceName = fields.resourceName;
+    if (fields.resourceUnit !== undefined) changes.resourceUnit = fields.resourceUnit?.toLowerCase() ?? null;
+    if (fields.resourceTotal !== undefined) changes.resourceTotal = fields.resourceTotal;
+    if (fields.resourceDone !== undefined) changes.resourceDone = fields.resourceDone;
+    // Never more done than there are units.
+    const total = changes.resourceTotal !== undefined ? changes.resourceTotal : existing.resourceTotal;
+    const done = changes.resourceDone ?? existing.resourceDone;
+    if (total !== null && total !== undefined && done > total) changes.resourceDone = total;
 
     const [updated] = await db
       .update(subject)
@@ -156,6 +180,143 @@ export async function archiveSubjectAction(id: string, archived = true): Promise
     return { success: true, data: updated };
   } catch (err) {
     return { success: false, error: safeErrorMessage(err, "Could not update the subject") };
+  }
+}
+
+/** Moves through the book or course: +1 after finishing a lesson, -1 to undo. */
+export async function advanceResourceAction(input: unknown): Promise<ActionResult<Subject>> {
+  try {
+    const session = await requireAuth();
+    const parsed = advanceResourceSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: "Check the details" };
+    const { subjectId, delta } = parsed.data;
+
+    const [updated] = await db
+      .update(subject)
+      .set({
+        resourceDone: sql`greatest(0, least(coalesce(${subject.resourceTotal}, 10000), ${subject.resourceDone} + ${delta}))`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(subject.id, subjectId), eq(subject.userId, session.user.id)))
+      .returning();
+    if (!updated) return { success: false, error: "Subject not found" };
+    revalidateStudyViews();
+    return { success: true, data: updated };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not update your progress") };
+  }
+}
+
+// ---------------------------------------------------------------- milestones
+
+export async function listMilestonesQuery(): Promise<Milestone[]> {
+  const session = await requireAuth();
+  return db.query.milestone.findMany({
+    where: eq(milestone.userId, session.user.id),
+    orderBy: [asc(milestone.sortOrder), asc(milestone.createdAt)],
+  });
+}
+
+export async function createMilestoneAction(input: unknown): Promise<ActionResult<Milestone>> {
+  try {
+    const session = await requireAuth();
+    const userId = session.user.id;
+    const parsed = createMilestoneSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the milestone" };
+
+    const project = await db.query.subject.findFirst({
+      where: and(eq(subject.id, parsed.data.subjectId), eq(subject.userId, userId)),
+      columns: { id: true, kind: true },
+    });
+    if (!project) return { success: false, error: "Project not found" };
+    if (project.kind !== "PROJECT") return { success: false, error: "Milestones are for side projects" };
+
+    const [last] = await db
+      .select({ max: sql<number | null>`max(${milestone.sortOrder})` })
+      .from(milestone)
+      .where(and(eq(milestone.subjectId, project.id), eq(milestone.userId, userId)));
+
+    const [created] = await db
+      .insert(milestone)
+      .values({
+        userId,
+        subjectId: project.id,
+        name: parsed.data.name,
+        targetDate: parsed.data.targetDate ?? null,
+        sortOrder: (last?.max ?? -1) + 1,
+      })
+      .returning();
+    revalidateStudyViews();
+    return { success: true, data: created };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not add the milestone") };
+  }
+}
+
+/** Rename, change the date, mark done or undone, or move up or down. */
+export async function updateMilestoneAction(input: unknown): Promise<ActionResult<Milestone>> {
+  try {
+    const session = await requireAuth();
+    const userId = session.user.id;
+    const parsed = updateMilestoneSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the milestone" };
+    const { id, name, targetDate, done, move } = parsed.data;
+    const owned = await ownMilestone(userId, id);
+
+    if (move) {
+      const siblings = await db.query.milestone.findMany({
+        where: and(eq(milestone.subjectId, owned.subjectId), eq(milestone.userId, userId)),
+        orderBy: [asc(milestone.sortOrder), asc(milestone.createdAt)],
+        columns: { id: true },
+      });
+      const order = siblings.map((m) => m.id);
+      const from = order.indexOf(id);
+      const to = move === "up" ? from - 1 : from + 1;
+      if (from >= 0 && to >= 0 && to < order.length) {
+        [order[from], order[to]] = [order[to], order[from]];
+        await db.transaction(async (tx) => {
+          for (const [index, milestoneId] of order.entries()) {
+            await tx
+              .update(milestone)
+              .set({ sortOrder: index })
+              .where(and(eq(milestone.id, milestoneId), eq(milestone.userId, userId)));
+          }
+        });
+      }
+    }
+
+    const changes: Partial<typeof milestone.$inferInsert> = { updatedAt: new Date() };
+    if (name !== undefined) changes.name = name;
+    if (targetDate !== undefined) changes.targetDate = targetDate;
+    if (done !== undefined) changes.completedAt = done ? new Date() : null;
+
+    const [updated] = await db
+      .update(milestone)
+      .set(changes)
+      .where(and(eq(milestone.id, id), eq(milestone.userId, userId)))
+      .returning();
+    if (!updated) return { success: false, error: "Milestone not found" };
+    revalidateStudyViews();
+    return { success: true, data: updated };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not update the milestone") };
+  }
+}
+
+/** Deletes a milestone; its tasks stay, without a milestone. */
+export async function deleteMilestoneAction(id: string): Promise<ActionResult<null>> {
+  try {
+    const session = await requireAuth();
+    if (typeof id !== "string" || id.length === 0) return { success: false, error: "Milestone not found" };
+    const deleted = await db
+      .delete(milestone)
+      .where(and(eq(milestone.id, id), eq(milestone.userId, session.user.id)))
+      .returning({ id: milestone.id });
+    if (deleted.length === 0) return { success: false, error: "Milestone not found" };
+    revalidateStudyViews();
+    return { success: true, data: null };
+  } catch (err) {
+    return { success: false, error: safeErrorMessage(err, "Could not delete the milestone") };
   }
 }
 
@@ -225,7 +386,11 @@ export interface FocusData {
   plannedMinutes: number;
   subjectId: string | null;
   subjectName: string | null;
+  subjectKind: Subject["kind"] | null;
+  taskId: string | null;
   taskTitle: string | null;
+  /** Self-learning: the next unit of the book or course ("Lesson 19"), if tracked. */
+  resourceNext: string | null;
   topicId: string | null;
   /** Active topics of the subject, most recently used first. */
   topics: { id: string; name: string }[];
@@ -244,7 +409,7 @@ export async function getFocusQuery(): Promise<FocusData | null> {
     running.subjectId
       ? db.query.subject.findFirst({
           where: and(eq(subject.id, running.subjectId), eq(subject.userId, userId)),
-          columns: { name: true },
+          columns: { name: true, kind: true, resourceName: true, resourceUnit: true, resourceTotal: true, resourceDone: true },
         })
       : null,
     running.taskId
@@ -269,7 +434,11 @@ export async function getFocusQuery(): Promise<FocusData | null> {
     plannedMinutes: running.plannedMinutes ?? defaultGoalMinutes(null),
     subjectId: running.subjectId,
     subjectName: subjectRow?.name ?? null,
+    subjectKind: subjectRow?.kind ?? null,
+    taskId: taskRow ? running.taskId : null,
     taskTitle: taskRow?.title ?? null,
+    resourceNext:
+      subjectRow?.kind === "SELF_LEARNING" ? (resourceProgress(subjectRow)?.nextShort ?? null) : null,
     topicId: running.topicId,
     topics: subjectTopics,
   };
@@ -548,14 +717,55 @@ export async function planStudyBlockAction(input: unknown): Promise<ActionResult
     const { minutes, reviewOn } = parsed.data;
 
     const subjectId = (await ownSubjectId(userId, parsed.data.subjectId))!;
-    const subjectRow = await db.query.subject.findFirst({ where: eq(subject.id, subjectId), columns: { name: true } });
+
+    // The suggestion is an existing task (a project's next task, a class
+    // assignment): plan that task instead of adding a study block.
+    if (parsed.data.taskId) {
+      const owned = (await ownTask(userId, parsed.data.taskId))!;
+      if (owned.subjectId !== subjectId) throw new UserFacingError("That task belongs to another subject");
+      const taskRow = (await db.query.task.findFirst({
+        where: and(eq(task.id, owned.id), eq(task.userId, userId)),
+        columns: { title: true, status: true },
+      }))!;
+      if (taskRow.status === "COMPLETED" || taskRow.status === "CANCELLED") {
+        return { success: false, error: "That task is already closed" };
+      }
+      const replanned = await replanWeekAction();
+      const plannedAt = replanned.success
+        ? (replanned.data.scheduled.find((s) => s.taskId === owned.id)?.startTime ?? null)
+        : null;
+      return {
+        success: true,
+        data: {
+          title: taskRow.title,
+          plannedAt,
+          notPlannedReason: plannedAt
+            ? null
+            : replanned.success
+              ? (replanned.data.unscheduled.find((u) => u.task.id === owned.id)?.reason ??
+                "Already planned or outside this week")
+              : replanned.error,
+          reused: true,
+        },
+      };
+    }
+
+    const subjectRow = await db.query.subject.findFirst({
+      where: eq(subject.id, subjectId),
+      columns: { name: true, kind: true, resourceName: true, resourceUnit: true, resourceTotal: true, resourceDone: true },
+    });
     let topicName: string | null = null;
     if (parsed.data.topicId) {
       const owned = await ownTopic(userId, parsed.data.topicId);
       if (owned.subjectId !== subjectId) throw new UserFacingError("That topic belongs to another subject");
       topicName = (await db.query.topic.findFirst({ where: eq(topic.id, owned.id), columns: { name: true } }))?.name ?? null;
     }
-    const title = topicName ? `Review: ${subjectRow!.name} · ${topicName}` : `Study: ${subjectRow!.name}`;
+    const nextUnit = subjectRow!.kind === "SELF_LEARNING" ? resourceProgress(subjectRow!)?.nextShort : null;
+    const title = topicName
+      ? `Review: ${subjectRow!.name} · ${topicName}`
+      : nextUnit
+        ? `Study: ${subjectRow!.name} · ${nextUnit}`
+        : `Study: ${subjectRow!.name}`;
 
     const timezone = await userTimezone(userId);
     const today = toLocalDateKey(new Date(), timezone);
@@ -622,6 +832,10 @@ export interface StudyContext {
   topics: Topic[];
   /** Finished tasks with an estimate and the minutes logged on them. */
   finishedTaskEstimates: { estimatedMinutes: number; actualMinutes: number }[];
+  /** Milestones of all projects, in order. */
+  milestones: Milestone[];
+  /** Status of every task that belongs to a milestone, for progress counts. */
+  milestoneTasks: { milestoneId: string | null; status: Task["status"] }[];
 }
 
 /** Everything the Today "Study next" line and the Progress screen need. */
@@ -631,7 +845,7 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
   // A year of history: the memory model replays it to know what is due.
   const since = new Date(Date.now() - 365 * 86_400_000);
 
-  const [timezone, subjects, sessions, running, openTasks, topics] = await Promise.all([
+  const [timezone, subjects, sessions, running, openTasks, topics, milestones, milestoneTasks] = await Promise.all([
     userTimezone(userId),
     db.query.subject.findMany({ where: eq(subject.userId, userId), orderBy: [asc(subject.name)] }),
     db.query.studySession.findMany({
@@ -646,6 +860,14 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
       orderBy: [asc(task.deadline)],
     }),
     db.query.topic.findMany({ where: eq(topic.userId, userId), orderBy: [desc(topic.updatedAt)] }),
+    db.query.milestone.findMany({
+      where: eq(milestone.userId, userId),
+      orderBy: [asc(milestone.sortOrder), asc(milestone.createdAt)],
+    }),
+    db.query.task.findMany({
+      where: and(eq(task.userId, userId), isNotNull(task.milestoneId)),
+      columns: { milestoneId: true, status: true },
+    }),
   ]);
 
   const sessionTaskIds = [...new Set(sessions.map((s) => s.taskId).filter((id): id is string => id !== null))];
@@ -676,6 +898,8 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
     taskTitles,
     topics,
     finishedTaskEstimates,
+    milestones,
+    milestoneTasks,
   };
 }
 
@@ -705,6 +929,7 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
     const ranking = rankStudyNext({
       subjects: active,
       topics: activeTopics,
+      milestones: context.milestones,
       openTasks: context.openTasks,
       sessions: context.sessions,
       now,
@@ -727,12 +952,39 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
       subjects: active.map((s) => {
         const stat = bySubject.get(s.id);
         const subjectSessions = context.sessions.filter((x) => x.subjectId === s.id);
-        const memory = replayMemory(subjectSessions, { timezone, examDate: s.examDate });
+        const isProject = s.kind === "PROJECT";
+        const examDate = s.kind === "CLASS" ? s.examDate : null;
+        const memory = isProject ? null : replayMemory(subjectSessions, { timezone, examDate });
+        const resource = s.kind === "SELF_LEARNING" ? resourceProgress(s) : null;
+        const current = isProject ? currentMilestone(s.id, context.milestones) : null;
         return {
           id: s.id,
           name: s.name,
-          confidence: s.confidence,
-          examDate: s.examDate,
+          kind: s.kind,
+          confidence: isProject ? null : s.confidence,
+          examDate,
+          targetDate: s.kind === "SELF_LEARNING" ? s.examDate : null,
+          practice:
+            s.kind === "SELF_LEARNING" && s.practiceDaysPerWeek
+              ? describeStreak(practiceStreak(subjectSessions, { now, timezone, daysPerWeek: s.practiceDaysPerWeek }))
+              : null,
+          resource: resource ? { name: resource.name, progress: resource.doneLabel, next: resource.nextLabel } : null,
+          milestones: isProject
+            ? context.milestones
+                .filter((m) => m.subjectId === s.id)
+                .slice(0, 10)
+                .map((m) => {
+                  const progress = milestoneProgress(m.id, context.milestoneTasks);
+                  return {
+                    name: m.name,
+                    targetDate: m.targetDate,
+                    done: m.completedAt !== null,
+                    current: current?.id === m.id,
+                    tasksDone: progress.done,
+                    tasksTotal: progress.total,
+                  };
+                })
+            : undefined,
           weeklyGoalMinutes: s.weeklyGoalMinutes,
           minutesLast7Days: stat?.minutes7d ?? 0,
           daysSinceLastStudied: daysSince(stat?.lastStudiedAt),
@@ -740,11 +992,11 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
           typicalMinutes: typicalMinutes(subjectSessions),
           nextReviewOn: memory?.nextReviewOn ?? null,
           topics: activeTopics
-            .filter((t) => t.subjectId === s.id)
+            .filter((t) => t.subjectId === s.id && !isProject)
             .slice(0, 15)
             .map((t) => {
               const topicSessions = subjectSessions.filter((x) => x.topicId === t.id);
-              const topicMemory = replayMemory(topicSessions, { timezone, examDate: s.examDate });
+              const topicMemory = replayMemory(topicSessions, { timezone, examDate });
               const last = topicSessions.reduce<Date | null>(
                 (latest, x) => (!latest || x.startedAt > latest ? x.startedAt : latest),
                 null
@@ -766,6 +1018,7 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
               title: t.title,
               deadline: t.deadline?.toISOString() ?? null,
               estimatedMinutes: t.estimatedMinutes,
+              milestone: t.milestoneId ? (context.milestones.find((m) => m.id === t.milestoneId)?.name ?? null) : null,
             })),
         };
       }),
@@ -778,6 +1031,7 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
     const subjectRow = active.find((s) => s.id === ai.subjectId)!;
     const topicRow = ai.topicId ? activeTopics.find((t) => t.id === ai.topicId) ?? null : null;
     const taskRow = ai.taskId ? context.openTasks.find((t) => t.id === ai.taskId) ?? null : null;
+    const ranked = ranking.find((r) => r.subjectId === subjectRow.id);
     const topicReview = topicRow
       ? aiContext.subjects.find((x) => x.id === subjectRow.id)?.topics?.find((t) => t.id === topicRow.id)?.nextReviewOn ?? null
       : null;
@@ -790,10 +1044,15 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
         suggestion: {
           subjectId: subjectRow.id,
           subjectName: subjectRow.name,
+          kind: subjectRow.kind,
           topicId: topicRow?.id ?? null,
           topicName: topicRow?.name ?? null,
           taskId: taskRow?.id ?? null,
           taskTitle: taskRow?.title ?? null,
+          milestoneName: taskRow?.milestoneId
+            ? (context.milestones.find((m) => m.id === taskRow.milestoneId)?.name ?? null)
+            : null,
+          resourceNext: !topicRow && !taskRow ? (ranked?.resourceNext ?? null) : null,
           reviewOn: topicReview,
           minutes: ai.minutes,
           reason: ai.reason,

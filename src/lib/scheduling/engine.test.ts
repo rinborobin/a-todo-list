@@ -10,6 +10,7 @@ function makeTask(overrides: Partial<Task> & { id: string }): Task {
     id: overrides.id,
     userId: "user-1",
     subjectId: null,
+    milestoneId: null,
     title: overrides.title ?? "Task",
     description: overrides.description ?? null,
     priority: overrides.priority ?? "MEDIUM",

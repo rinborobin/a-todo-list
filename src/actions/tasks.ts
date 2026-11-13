@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { scheduleItem, task, type Task } from "@/db/schema";
 import { requireAuth, assertUserOwnership } from "@/lib/session";
 import { safeErrorMessage } from "@/lib/error";
-import { ownSubjectId } from "@/lib/study/ownership";
+import { ownSubjectId, ownTaskMilestoneId } from "@/lib/study/ownership";
 import {
   createTaskSchema,
   updateTaskSchema,
@@ -40,12 +40,14 @@ export async function createTaskAction(input: CreateTaskInput): Promise<ActionRe
     }
 
     const subjectId = await ownSubjectId(session.user.id, result.data.subjectId);
+    const milestoneId = await ownTaskMilestoneId(session.user.id, result.data.milestoneId, subjectId);
 
     const [newTask] = await db
       .insert(task)
       .values({
         userId: session.user.id,
         subjectId,
+        milestoneId,
         title: result.data.title,
         description: result.data.description ?? null,
         priority: result.data.priority,
@@ -97,13 +99,25 @@ export async function updateTaskAction(
 
     assertUserOwnership(existingTask.userId, session.user.id);
 
-    const { subjectId, ...fields } = result.data;
+    const { subjectId, milestoneId, ...fields } = result.data;
+    // Only touch the subject when the caller sent one; verify ownership first.
+    const nextSubjectId =
+      subjectId !== undefined ? await ownSubjectId(session.user.id, subjectId) : existingTask.subjectId;
+    // A milestone must belong to the task's own project; moving the task to
+    // another subject drops a milestone that no longer fits.
+    const nextMilestoneId =
+      milestoneId !== undefined
+        ? await ownTaskMilestoneId(session.user.id, milestoneId, nextSubjectId)
+        : nextSubjectId !== existingTask.subjectId
+          ? null
+          : existingTask.milestoneId;
+
     const [updatedTask] = await db
       .update(task)
       .set({
         ...fields,
-        // Only touch the subject when the caller sent one; verify ownership first.
-        ...(subjectId !== undefined ? { subjectId: await ownSubjectId(session.user.id, subjectId) } : {}),
+        subjectId: nextSubjectId,
+        milestoneId: nextMilestoneId,
         updatedAt: new Date(),
       })
       .where(and(eq(task.id, id), eq(task.userId, session.user.id)))

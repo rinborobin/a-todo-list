@@ -4,7 +4,7 @@ import type { SubjectMeterRow } from "@/components/progress/subject-meters";
 import { rankStudyNext } from "@/lib/study/next";
 import { dailyTotals, summarizeStudy } from "@/lib/study/stats";
 import { buildLearned } from "@/lib/study/learned";
-import { toLocalDateKey } from "@/lib/scheduling/timezone";
+import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
 import { currentMilestone, milestoneProgress, resourceProgress } from "@/lib/study/progress";
 import { describeStreak, practiceStreak } from "@/lib/study/streak";
 import type { Subject } from "@/db/schema";
@@ -23,8 +23,15 @@ export default async function ProgressPage() {
 
   const active = study.subjects.filter((s) => !s.archivedAt);
   const { totalMinutes7d, bySubject } = summarizeStudy(study.sessions, now);
-  const daysSince = (date: Date | null | undefined) =>
-    date ? Math.floor((now.getTime() - date.getTime()) / DAY_MS) : null;
+  // Calendar days in the user's time zone, so "yesterday" means yesterday.
+  const today = toLocalDateKey(now, timezone);
+  const daysSince = (date: Date | null | undefined) => {
+    if (!date) return null;
+    const day = toLocalDateKey(date, timezone);
+    let n = 0;
+    for (let key = day; key < today && n < 3650; key = addDaysToDateKey(key, 1)) n += 1;
+    return n;
+  };
 
   // Kind-specific progress under each row.
   const detailFor = (s: Subject): string | null => {
@@ -100,13 +107,14 @@ export default async function ProgressPage() {
   return (
     <ProgressView
       timezone={timezone}
-      today={toLocalDateKey(now, timezone)}
+      today={today}
       initialNow={now}
       totalMinutes7d={totalMinutes7d}
       days={dailyTotals(study.sessions, now, timezone, 7)}
       subjectRows={subjectRows}
       sessions={study.sessions.filter((s) => now.getTime() - s.startedAt.getTime() <= RECENT_DAYS * DAY_MS)}
       subjectNames={subjectNames}
+      projectIds={study.subjects.filter((s) => s.kind === "PROJECT").map((s) => s.id)}
       taskTitles={study.taskTitles}
       activeSubjects={active.map(({ id, name }) => ({ id, name }))}
       topics={study.topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}

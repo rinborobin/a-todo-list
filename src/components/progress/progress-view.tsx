@@ -28,6 +28,8 @@ interface ProgressViewProps {
   subjectRows: SubjectMeterRow[];
   sessions: StudySession[];
   subjectNames: Record<string, string>;
+  /** Ids of side projects: their sessions are not rated. */
+  projectIds: string[];
   taskTitles: Record<string, string>;
   activeSubjects: { id: string; name: string }[];
   topics: { id: string; name: string; subjectId: string }[];
@@ -93,7 +95,7 @@ export function ProgressView(props: ProgressViewProps) {
 
           <section aria-labelledby="subjects-heading">
             <h2 id="subjects-heading" className={`${sectionTitle} mb-2`}>
-              By subject
+              Where the time went
             </h2>
             {subjectRows.length > 0 ? (
               <SubjectMeters rows={subjectRows} />
@@ -153,9 +155,11 @@ export function ProgressView(props: ProgressViewProps) {
                               <TrashIcon className="h-4 w-4" />
                             </button>
                           </div>
-                          <div className="mt-2">
-                            <RatingPicker sessionId={s.id} value={s.rating} />
-                          </div>
+                          {!(s.subjectId && props.projectIds.includes(s.subjectId)) && (
+                            <div className="mt-2">
+                              <RatingPicker sessionId={s.id} value={s.rating} />
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>

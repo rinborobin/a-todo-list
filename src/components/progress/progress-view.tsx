@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+
 import { askAiStudyNextAction, deleteStudySessionAction, type AiStudyNextResult } from "@/actions/study";
 import type { StudySession } from "@/db/schema";
 import type { StudyNextSuggestion } from "@/lib/study/next";
@@ -40,7 +40,6 @@ const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-mut
 
 export function ProgressView(props: ProgressViewProps) {
   const { timezone, today, initialNow, totalMinutes7d, days, subjectRows, sessions, subjectNames, taskTitles } = props;
-  const router = useRouter();
   const [logOpen, setLogOpen] = useState(false);
   const [ai, setAi] = useState<AiStudyNextResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -61,9 +60,8 @@ export function ProgressView(props: ProgressViewProps) {
 
   const remove = async (id: string) => {
     setDeleting(id);
-    const result = await deleteStudySessionAction(id);
+    await deleteStudySessionAction(id);
     setDeleting(null);
-    if (result.success) router.refresh();
   };
 
   const byDay = new Map<string, StudySession[]>();

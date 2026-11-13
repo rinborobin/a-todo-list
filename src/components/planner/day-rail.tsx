@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Fragment, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { updateScheduleItemStatusAction, type PlanWithItems } from "@/actions/planner";
 import { describeDue, formatClock, formatDuration, formatStartsIn } from "@/lib/format";
 import { CheckIcon } from "@/components/ui/icons";
@@ -26,7 +25,6 @@ interface DayRailProps {
 const FREE_GAP_MINUTES = 15;
 
 export function DayRail({ items, timezone, now, live = false, onStatusChange, topics = [] }: DayRailProps) {
-  const router = useRouter();
   const [overrides, setOverrides] = useState<Record<string, Status>>({});
   const [error, setError] = useState<string | null>(null);
   const [ratingPrompt, setRatingPrompt] = useState<{ itemId: string; sessionId: string } | null>(null);
@@ -56,7 +54,6 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange, to
       }
       const sessionId = result.data.studySessionId;
       setRatingPrompt(next === "COMPLETED" && sessionId ? { itemId: item.id, sessionId } : null);
-      router.refresh();
     });
   };
 
@@ -130,7 +127,7 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange, to
                   }`}
                 >
                   {item.task ? (
-                    <Link href={`/tasks/${item.task.id}`} className="hover:underline">
+                    <Link href={`/tasks/${item.task.id}`} prefetch={false} className="hover:underline">
                       {title}
                     </Link>
                   ) : (

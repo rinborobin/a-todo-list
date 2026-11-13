@@ -15,6 +15,13 @@ import {
   type UpdateTimezoneInput,
 } from "@/lib/validations/availability";
 
+/** Free hours and time zone show on Me and shape the plan on Today and Week. */
+function revalidateAvailabilityViews() {
+  revalidatePath("/me");
+  revalidatePath("/today");
+  revalidatePath("/week");
+}
+
 export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
@@ -115,7 +122,7 @@ export async function createAvailabilityBlockAction(
       })
       .returning();
 
-    revalidatePath("/availability");
+    revalidateAvailabilityViews();
     return { success: true, data: newBlock };
   } catch (err) {
     return {
@@ -189,7 +196,7 @@ export async function updateAvailabilityBlockAction(
       .where(and(eq(availability.id, id), eq(availability.userId, session.user.id)))
       .returning();
 
-    revalidatePath("/availability");
+    revalidateAvailabilityViews();
     return { success: true, data: updatedBlock };
   } catch (err) {
     return {
@@ -220,7 +227,7 @@ export async function deleteAvailabilityBlockAction(
 
     await db.delete(availability).where(and(eq(availability.id, id), eq(availability.userId, session.user.id)));
 
-    revalidatePath("/availability");
+    revalidateAvailabilityViews();
     return { success: true, data: { id } };
   } catch (err) {
     return {
@@ -243,7 +250,7 @@ export async function clearAvailabilityForDayAction(
       .delete(availability)
       .where(and(eq(availability.userId, session.user.id), eq(availability.dayOfWeek, dayOfWeek)));
 
-    revalidatePath("/availability");
+    revalidateAvailabilityViews();
     return { success: true, data: { dayOfWeek } };
   } catch (err) {
     return {
@@ -277,7 +284,7 @@ export async function updateUserTimezoneAction(
       .set({ timezone: result.data.timezone })
       .where(eq(user.id, session.user.id));
 
-    revalidatePath("/availability");
+    revalidateAvailabilityViews();
     return { success: true, data: { timezone: result.data.timezone } };
   } catch (err) {
     return {

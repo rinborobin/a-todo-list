@@ -64,7 +64,6 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
           ? `${reused ? "Already in your plan" : "Planned"} ${describeDue(plannedAt, new Date(), timezone).label}.`
           : `Added to your tasks. Not planned yet: ${(notPlannedReason ?? "no free time").toLowerCase()}.`
       );
-      router.refresh();
     });
   };
 
@@ -121,7 +120,6 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
         setFinished(null);
         setError("Under a minute, so it was not saved.");
       }
-      router.refresh();
     });
   };
 

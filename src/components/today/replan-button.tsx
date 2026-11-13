@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { replanWeekAction } from "@/actions/planner";
 import { Button } from "@/components/ui/button";
 import { RefreshIcon } from "@/components/ui/icons";
@@ -13,7 +12,6 @@ interface ReplanButtonProps {
 
 /** Replans today through the next six days and refreshes the page. */
 export function ReplanButton({ label = "Replan", variant = "ghost" }: ReplanButtonProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +30,6 @@ export function ReplanButton({ label = "Replan", variant = "ghost" }: ReplanButt
               setError(result.error);
               return;
             }
-            router.refresh();
           })
         }
       >

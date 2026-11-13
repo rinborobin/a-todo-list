@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { confirmTaskProposalAction, type TaskProposalResult } from "@/actions/planner";
 import { CheckIcon, CloseIcon, TrashIcon, AlertTriangleIcon } from "@/components/ui/icons";
 import type { ProposalItem, ExistingProposalItem, NewProposalItem } from "@/lib/ai/proposal-schemas";
@@ -14,7 +13,6 @@ interface ProposalViewProps {
 }
 
 export function ProposalView({ proposal, startDate, endDate, onCancel }: ProposalViewProps) {
-  const router = useRouter();
   const [items, setItems] = useState<ProposalItem[]>(proposal.items);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +53,6 @@ export function ProposalView({ proposal, startDate, endDate, onCancel }: Proposa
     }
 
     onCancel();
-    router.refresh();
   };
 
   return (

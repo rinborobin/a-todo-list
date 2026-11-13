@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { Availability, DayOfWeek } from "@/db/schema";
 import {
   createAvailabilityBlockAction,
@@ -32,7 +31,6 @@ const dayLabels: Record<DayOfWeek, string> = {
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
 export function AvailabilityManager({ initialBlocks, initialTimezone }: AvailabilityManagerProps) {
-  const router = useRouter();
   const [blocks, setBlocks] = useState<Availability[]>(initialBlocks);
   const [timezone, setTimezone] = useState(initialTimezone);
   const [timezoneStatus, setTimezoneStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -66,7 +64,6 @@ export function AvailabilityManager({ initialBlocks, initialTimezone }: Availabi
       return;
     }
     setTimezoneStatus("saved");
-    router.refresh();
   };
 
   const handleSubmit = async (data: CreateAvailabilityInput | UpdateAvailabilityInput) => {

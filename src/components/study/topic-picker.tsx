@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setSessionTopicAction } from "@/actions/study";
 import { PlusIcon } from "@/components/ui/icons";
 
@@ -126,7 +125,6 @@ export function SessionTopicPicker({
   initialTopicId?: string | null;
   label?: string;
 }) {
-  const router = useRouter();
   const [topics, setTopics] = useState(initialTopics);
   const [selectedId, setSelectedId] = useState<string | null>(initialTopicId);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +146,6 @@ export function SessionTopicPicker({
         setTopics((prev) => [{ id: topicId, name: topicName }, ...prev]);
       }
       setSelectedId(topicId);
-      router.refresh();
     });
   };
 

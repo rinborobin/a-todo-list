@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { quickAddTaskAction } from "@/actions/planner";
 import { parseQuickAdd, type QuickAddResult } from "@/lib/quick-add/parse";
 import { describeDue, formatDuration } from "@/lib/format";
@@ -26,7 +25,6 @@ function formatDeadline(date: Date, timezone: string): string {
  * sits at the top of the side column. Press "n" anywhere to focus it.
  */
 export function QuickAdd({ timezone, subjects = [] }: { timezone: string; subjects?: { id: string; name: string }[] }) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState<QuickAddResult | null>(null);
@@ -82,7 +80,6 @@ export function QuickAdd({ timezone, subjects = [] }: { timezone: string; subjec
           ? { tone: "ok", text: `Added. Planned ${describeDue(plannedAt, new Date(), timezone).label}.` }
           : { tone: "ok", text: `Added. Not planned yet: ${notPlannedReason?.toLowerCase() ?? "no free time"}.` }
       );
-      router.refresh();
     });
   };
 

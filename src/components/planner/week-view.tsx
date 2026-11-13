@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   generatePlanAction,
   generatePlanWithAIAction,
@@ -38,7 +37,6 @@ function formatRange(start: string, end: string) {
 }
 
 export function WeekView({ plans, loadError, timezone, today, startDate, endDate, now, topics }: WeekViewProps) {
-  const router = useRouter();
   const [pending, setPending] = useState<"plain" | "ai" | null>(null);
   const [, startTransition] = useTransition();
   const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
@@ -69,7 +67,6 @@ export function WeekView({ plans, loadError, timezone, today, startDate, endDate
       if (unscheduled.length > 0) parts.push(`${unscheduled.length} could not fit`);
       if (mode === "ai" && !result.data.aiGenerated) parts.push("AI was unavailable, used the standard order");
       setMessage({ tone: "info", text: parts.join(" · ") });
-      router.refresh();
     });
   };
 

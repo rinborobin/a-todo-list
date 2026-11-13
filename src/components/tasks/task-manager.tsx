@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { Task, TaskPriority, TaskStatus } from "@/db/schema";
 import { createTaskAction, updateTaskAction, deleteTaskAction, toggleTaskStatusAction } from "@/actions/tasks";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
@@ -37,7 +36,6 @@ function isOpen(task: Task) {
 export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManagerProps) {
   const subjectName = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects]);
   const activeSubjects = useMemo(() => subjects.filter((s) => !s.archived), [subjects]);
-  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -122,7 +120,6 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
     setTasks((prev) =>
       editingTask ? prev.map((t) => (t.id === editingTask.id ? res.data : t)) : [res.data, ...prev]
     );
-    router.refresh();
     return { success: true };
   };
 
@@ -155,7 +152,6 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
     }
     setTasks((prev) => prev.filter((t) => t.id !== id));
     setDeletingTask(null);
-    router.refresh();
   };
 
   return (

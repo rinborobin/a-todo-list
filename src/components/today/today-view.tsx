@@ -159,7 +159,7 @@ function Deadlines({ tasks, now, timezone }: { tasks: Task[]; now: Date; timezon
           const due = describeDue(task.deadline!, now, timezone);
           return (
             <li key={task.id} className="flex items-baseline justify-between gap-3 text-[15px]">
-              <Link href={`/tasks/${task.id}`} className="min-w-0 truncate font-medium hover:underline">
+              <Link href={`/tasks/${task.id}`} prefetch={false} className="min-w-0 truncate font-medium hover:underline">
                 {task.title}
               </Link>
               <span
@@ -195,7 +195,7 @@ function Unplanned({ tasks, now }: { tasks: Task[]; now: Date }) {
       <ul className="divide-y divide-line">
         {tasks.slice(0, 5).map((task) => (
           <li key={task.id}>
-            <Link href={`/tasks/${task.id}`} className="group flex items-center gap-3 py-2.5">
+            <Link href={`/tasks/${task.id}`} prefetch={false} className="group flex items-center gap-3 py-2.5">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] group-hover:underline">{task.title}</span>
                 <span className="text-[13px] text-muted">{reasonFor(task, now)}</span>

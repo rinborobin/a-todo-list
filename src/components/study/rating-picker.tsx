@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { rateStudySessionAction } from "@/actions/study";
 import type { StudyRating } from "@/db/schema";
 import { RATING_LABEL } from "@/lib/study/labels";
@@ -19,7 +18,6 @@ interface RatingPickerProps {
 
 /** One tap to say how a study session went. Tapping the chosen value again clears it. */
 export function RatingPicker({ sessionId, value = null, prompt = false, onDone }: RatingPickerProps) {
-  const router = useRouter();
   const [rating, setRating] = useState<StudyRating | null>(value);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -36,7 +34,6 @@ export function RatingPicker({ sessionId, value = null, prompt = false, onDone }
         setError(result.error);
         return;
       }
-      router.refresh();
       if (prompt) onDone?.();
     });
   };

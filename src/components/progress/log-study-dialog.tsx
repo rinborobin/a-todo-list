@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { logStudySessionAction } from "@/actions/study";
 import type { StudyRating } from "@/db/schema";
 import { RATING_LABEL } from "@/lib/study/labels";
@@ -26,7 +25,6 @@ const chip = (active: boolean) =>
   `h-9 flex-1 rounded-lg text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-paper text-ink-soft hover:bg-line"}`;
 
 export function LogStudyDialog({ open, onClose, subjects, topics, today }: LogStudyDialogProps) {
-  const router = useRouter();
   const yesterday = addDaysToDateKey(today, -1);
   const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? "");
   const [minutes, setMinutes] = useState("60");
@@ -55,7 +53,6 @@ export function LogStudyDialog({ open, onClose, subjects, topics, today }: LogSt
       setError(result.error);
       return;
     }
-    router.refresh();
     onClose();
   };
 

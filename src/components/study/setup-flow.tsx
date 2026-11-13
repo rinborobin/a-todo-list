@@ -58,7 +58,6 @@ export function SetupFlow({ initialSubjects, hasAvailability, today }: SetupFlow
 
   const finish = () => {
     router.push("/today");
-    router.refresh();
   };
 
   return (

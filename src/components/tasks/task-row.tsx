@@ -61,7 +61,7 @@ export function TaskRow({ task, subjectName, now, timezone, busy, onToggle, onEd
         </span>
       </button>
 
-      <Link href={`/tasks/${task.id}`} className="min-w-0 flex-1 py-2.5">
+      <Link href={`/tasks/${task.id}`} prefetch={false} className="min-w-0 flex-1 py-2.5">
         <span
           className={`block truncate text-[15px] font-medium ${
             isDone || isCancelled ? "text-faint line-through decoration-faint" : ""

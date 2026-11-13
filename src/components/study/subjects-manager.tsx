@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { Subject } from "@/db/schema";
 import { archiveSubjectAction, createSubjectAction, renameSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ export function SubjectsManager({
   topics: { id: string; name: string; subjectId: string }[];
   today: string;
 }) {
-  const router = useRouter();
   const [subjects, setSubjects] = useState(initialSubjects);
   const [newName, setNewName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
@@ -50,7 +48,6 @@ export function SubjectsManager({
       }
       setSubjects((prev) => [...prev, result.data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewName("");
-      router.refresh();
     });
   };
 
@@ -66,7 +63,6 @@ export function SubjectsManager({
       }
       replace(result.data);
       setEditing(null);
-      router.refresh();
     });
   };
 
@@ -79,7 +75,6 @@ export function SubjectsManager({
         return;
       }
       replace(result.data);
-      router.refresh();
     });
   };
 

@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { archiveTopicAction, renameTopicAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 
 /** Topics of one subject on Me: rename a typo, archive what is done. */
 export function TopicList({ topics: initial }: { topics: { id: string; name: string }[] }) {
-  const router = useRouter();
   const [topics, setTopics] = useState(initial);
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +28,6 @@ export function TopicList({ topics: initial }: { topics: { id: string; name: str
       setTopics((prev) => prev.map((t) => (t.id === editing.id ? { ...t, name: result.data.name } : t)));
       setEditing(null);
       setError(null);
-      router.refresh();
     });
   };
 
@@ -42,7 +39,6 @@ export function TopicList({ topics: initial }: { topics: { id: string; name: str
         return;
       }
       setTopics((prev) => prev.filter((t) => t.id !== id));
-      router.refresh();
     });
   };
 

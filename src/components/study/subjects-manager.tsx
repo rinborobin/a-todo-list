@@ -1,27 +1,39 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Subject } from "@/db/schema";
+import type { Milestone, Subject, SubjectKind } from "@/db/schema";
 import { archiveSubjectAction, createSubjectAction, renameSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
-import { SubjectSetupFields, describeSetup } from "./subject-setup-fields";
+import { KindPicker, SubjectSetupFields, describeSetup } from "./subject-setup-fields";
+import { toSetupSubject } from "./setup-subject";
 import { TopicList } from "./topic-list";
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
+const PLACEHOLDER: Record<SubjectKind, string> = {
+  CLASS: "Add a class",
+  PROJECT: "Add a side project",
+  SELF_LEARNING: "Add something to learn",
+};
+
 export function SubjectsManager({
   initialSubjects,
   topics,
+  milestones,
+  milestoneProgress,
   today,
 }: {
   initialSubjects: Subject[];
   topics: { id: string; name: string; subjectId: string }[];
+  milestones: Milestone[];
+  milestoneProgress: Record<string, { done: number; total: number }>;
   today: string;
 }) {
   const [subjects, setSubjects] = useState(initialSubjects);
   const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState<SubjectKind>("CLASS");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -41,7 +53,7 @@ export function SubjectsManager({
     if (!newName.trim()) return;
     setError(null);
     startTransition(async () => {
-      const result = await createSubjectAction({ name: newName });
+      const result = await createSubjectAction({ name: newName, kind: newKind });
       if (!result.success) {
         setError(result.error);
         return;
@@ -81,11 +93,12 @@ export function SubjectsManager({
   return (
     <section aria-labelledby="subjects-heading">
       <h2 id="subjects-heading" className={sectionTitle}>
-        Subjects
+        What you are working on
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Study time is grouped by subject. In quick-add, type <span className="font-medium text-ink">#</span> and the
-        start of a name, like <span className="font-medium text-ink">#calc</span>.
+        Classes, side projects and self-learning. Time is grouped by each one. In quick-add, type{" "}
+        <span className="font-medium text-ink">#</span> and the start of a name, like{" "}
+        <span className="font-medium text-ink">#calc</span>.
       </p>
 
       {active.length > 0 && (
@@ -133,24 +146,24 @@ export function SubjectsManager({
                 {openId === s.id && (
                   <div className="rise pb-3 pl-6 pt-2">
                     <SubjectSetupFields
-                      subject={{
-                        id: s.id,
-                        name: s.name,
-                        confidence: s.confidence,
-                        examDate: s.examDate,
-                        weeklyGoalMinutes: s.weeklyGoalMinutes,
-                      }}
+                      subject={toSetupSubject(s)}
                       today={today}
+                      showKind
+                      milestones={milestones.filter((m) => m.subjectId === s.id)}
+                      milestoneProgress={milestoneProgress}
+                      onSaved={replace}
                     />
-                    <div className="mt-5">
-                      <TopicList topics={topics.filter((t) => t.subjectId === s.id)} />
-                    </div>
+                    {s.kind !== "PROJECT" && (
+                      <div className="mt-5">
+                        <TopicList topics={topics.filter((t) => t.subjectId === s.id)} />
+                      </div>
+                    )}
                     <div className="mt-4 flex gap-1 border-t border-line pt-3">
                       <Button variant="ghost" size="sm" className="-ml-3" onClick={() => setEditing({ id: s.id, name: s.name })}>
-                        Rename subject
+                        Rename
                       </Button>
                       <Button variant="ghost" size="sm" disabled={isPending} onClick={() => setArchived(s.id, true)}>
-                        Archive subject
+                        Archive
                       </Button>
                     </div>
                   </div>
@@ -161,15 +174,18 @@ export function SubjectsManager({
         </ul>
       )}
 
-      <form onSubmit={add} className="mt-3 flex gap-2">
+      <div className="mt-4">
+        <KindPicker compact value={newKind} onChange={setNewKind} />
+      </div>
+      <form onSubmit={add} className="mt-2 flex gap-2">
         <label htmlFor="new-subject" className="sr-only">
-          New subject
+          {PLACEHOLDER[newKind]}
         </label>
         <Input
           id="new-subject"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder={active.length === 0 ? "Calculus" : "Add a subject"}
+          placeholder={PLACEHOLDER[newKind]}
           maxLength={60}
         />
         <Button type="submit" disabled={isPending || !newName.trim()}>

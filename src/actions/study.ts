@@ -217,6 +217,17 @@ export async function listMilestonesQuery(): Promise<Milestone[]> {
   });
 }
 
+/** Finished and total tasks per milestone id (cancelled tasks left out). */
+export async function getMilestoneProgressQuery(): Promise<Record<string, { done: number; total: number }>> {
+  const session = await requireAuth();
+  const rows = await db.query.task.findMany({
+    where: and(eq(task.userId, session.user.id), isNotNull(task.milestoneId)),
+    columns: { milestoneId: true, status: true },
+  });
+  const ids = [...new Set(rows.map((r) => r.milestoneId!))];
+  return Object.fromEntries(ids.map((id) => [id, milestoneProgress(id, rows)]));
+}
+
 export async function createMilestoneAction(input: unknown): Promise<ActionResult<Milestone>> {
   try {
     const session = await requireAuth();

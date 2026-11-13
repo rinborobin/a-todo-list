@@ -1,15 +1,17 @@
 import { getUserAvailabilityQuery, getUserTimezoneQuery } from "@/actions/availability";
-import { listSubjectsQuery } from "@/actions/study";
+import { listMilestonesQuery, listSubjectsQuery } from "@/actions/study";
 import { SetupFlow } from "@/components/study/setup-flow";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
+import { toSetupSubject } from "@/components/study/setup-subject";
 
 export const metadata = {
   title: "Set up",
 };
 
 export default async function SetupPage() {
-  const [subjects, availability, timezone] = await Promise.all([
+  const [subjects, milestones, availability, timezone] = await Promise.all([
     listSubjectsQuery(),
+    listMilestonesQuery(),
     getUserAvailabilityQuery(),
     getUserTimezoneQuery(),
   ]);
@@ -18,13 +20,8 @@ export default async function SetupPage() {
     <SetupFlow
       initialSubjects={subjects
         .filter((s) => !s.archivedAt)
-        .map(({ id, name, confidence, examDate, weeklyGoalMinutes }) => ({
-          id,
-          name,
-          confidence,
-          examDate,
-          weeklyGoalMinutes,
-        }))}
+        .map(toSetupSubject)}
+      milestones={milestones}
       hasAvailability={availability.length > 0}
       today={toLocalDateKey(new Date(), timezone)}
     />

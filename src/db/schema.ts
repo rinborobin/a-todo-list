@@ -112,6 +112,8 @@ export const availability = pgTable(
 );
 
 export const subjectConfidenceEnum = pgEnum("subject_confidence", ["WEAK", "OK", "STRONG"]);
+/** What a subject is: a class, a side project or something learned on your own. */
+export const subjectKindEnum = pgEnum("subject_kind", ["CLASS", "PROJECT", "SELF_LEARNING"]);
 
 export const subject = pgTable(
   "subject",
@@ -123,10 +125,18 @@ export const subject = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    kind: subjectKindEnum("kind").notNull().default("CLASS"),
     // Set during setup; seeds suggestions before there is study history.
     confidence: subjectConfidenceEnum("confidence"),
+    // Exam date for a class, target date for self-learning.
     examDate: date("exam_date"),
     weeklyGoalMinutes: integer("weekly_goal_minutes"),
+    // Self-learning: how many days a week to practise, and the book or course being worked through.
+    practiceDaysPerWeek: integer("practice_days_per_week"),
+    resourceName: text("resource_name"),
+    resourceUnit: text("resource_unit"),
+    resourceTotal: integer("resource_total"),
+    resourceDone: integer("resource_done").notNull().default(0),
     // Subjects are archived rather than deleted so study history keeps its label.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -137,6 +147,14 @@ export const subject = pgTable(
     check(
       "subject_weekly_goal_range",
       sql`${table.weeklyGoalMinutes} is null or (${table.weeklyGoalMinutes} >= 0 and ${table.weeklyGoalMinutes} <= 2400)`
+    ),
+    check(
+      "subject_practice_days_range",
+      sql`${table.practiceDaysPerWeek} is null or (${table.practiceDaysPerWeek} >= 1 and ${table.practiceDaysPerWeek} <= 7)`
+    ),
+    check(
+      "subject_resource_range",
+      sql`${table.resourceDone} >= 0 and (${table.resourceTotal} is null or (${table.resourceTotal} >= 1 and ${table.resourceTotal} <= 10000 and ${table.resourceDone} <= ${table.resourceTotal}))`
     ),
   ]
 );
@@ -165,6 +183,29 @@ export const topic = pgTable(
   ]
 );
 
+/** A step of a side project ("MVP", "Launch"); tasks can belong to one. */
+export const milestone = pgTable(
+  "milestone",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id")
+      .notNull()
+      .references(() => subject.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    targetDate: date("target_date"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("milestone_user_idx").on(table.userId), index("milestone_subject_idx").on(table.subjectId)]
+);
+
 export const task = pgTable(
   "task",
   {
@@ -175,6 +216,7 @@ export const task = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     subjectId: text("subject_id").references(() => subject.id, { onDelete: "set null" }),
+    milestoneId: text("milestone_id").references(() => milestone.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description"),
     priority: taskPriorityEnum("priority").notNull().default("MEDIUM"),
@@ -309,3 +351,5 @@ export type StudySource = (typeof studySourceEnum.enumValues)[number];
 export type StudyRating = (typeof studyRatingEnum.enumValues)[number];
 export type Topic = typeof topic.$inferSelect;
 export type SubjectConfidence = (typeof subjectConfidenceEnum.enumValues)[number];
+export type SubjectKind = (typeof subjectKindEnum.enumValues)[number];
+export type Milestone = typeof milestone.$inferSelect;

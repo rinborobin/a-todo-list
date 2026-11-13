@@ -5,6 +5,9 @@ import { rankStudyNext } from "@/lib/study/next";
 import { dailyTotals, summarizeStudy } from "@/lib/study/stats";
 import { buildLearned } from "@/lib/study/learned";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
+import { currentMilestone, milestoneProgress, resourceProgress } from "@/lib/study/progress";
+import { describeStreak, practiceStreak } from "@/lib/study/streak";
+import type { Subject } from "@/db/schema";
 
 export const metadata = {
   title: "Progress",
@@ -23,14 +26,39 @@ export default async function ProgressPage() {
   const daysSince = (date: Date | null | undefined) =>
     date ? Math.floor((now.getTime() - date.getTime()) / DAY_MS) : null;
 
+  // Kind-specific progress under each row.
+  const detailFor = (s: Subject): string | null => {
+    if (s.kind === "SELF_LEARNING") {
+      const parts = [resourceProgress(s)?.doneLabel];
+      if (s.practiceDaysPerWeek) {
+        const streak = practiceStreak(
+          study.sessions.filter((x) => x.subjectId === s.id),
+          { now, timezone, daysPerWeek: s.practiceDaysPerWeek }
+        );
+        const line = describeStreak(streak);
+        parts.push(line.charAt(0).toUpperCase() + line.slice(1));
+      }
+      return parts.filter(Boolean).join(" · ") || null;
+    }
+    if (s.kind === "PROJECT") {
+      const current = currentMilestone(s.id, study.milestones);
+      if (!current) return null;
+      const { done, total } = milestoneProgress(current.id, study.milestoneTasks);
+      return total > 0 ? `${current.name} ${done}/${total} tasks` : current.name;
+    }
+    return null;
+  };
+
   const subjectRows: SubjectMeterRow[] = active.map((s) => {
     const stat = bySubject.get(s.id);
     return {
       key: s.id,
       name: s.name,
+      kind: s.kind,
       minutes7d: stat?.minutes7d ?? 0,
       daysSince: daysSince(stat?.lastStudiedAt),
       latestRating: stat?.latestRating ?? null,
+      detail: detailFor(s),
     };
   });
   const unassigned = bySubject.get(null);
@@ -38,9 +66,11 @@ export default async function ProgressPage() {
     subjectRows.push({
       key: "none",
       name: "No subject",
+      kind: null,
       minutes7d: unassigned.minutes7d,
       daysSince: daysSince(unassigned.lastStudiedAt),
       latestRating: unassigned.latestRating,
+      detail: null,
     });
   }
   subjectRows.sort((a, b) => b.minutes7d - a.minutes7d || a.name.localeCompare(b.name));

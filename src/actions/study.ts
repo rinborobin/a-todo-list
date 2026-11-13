@@ -849,7 +849,7 @@ export interface StudyContext {
   milestoneTasks: { milestoneId: string | null; status: Task["status"] }[];
 }
 
-/** Everything the Today "Study next" line and the Progress screen need. */
+/** Everything the Today "Next up" line and the Progress screen need. */
 export async function getStudyContextQuery(): Promise<StudyContext> {
   const session = await requireAuth();
   const userId = session.user.id;

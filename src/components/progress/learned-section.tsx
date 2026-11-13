@@ -20,6 +20,13 @@ function hoursText(hours: number[]) {
   return labels.length === 1 ? `around ${labels[0]}` : `around ${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
 }
 
+function idleText(days: number | null) {
+  if (days === null) return "not started";
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
+
 function estimateText(ratio: number) {
   if (ratio >= 1.05) return `Tasks take about ${Math.round((ratio - 1) * 100)}% longer than you estimate.`;
   if (ratio <= 0.95) return `Tasks take about ${Math.round((1 - ratio) * 100)}% less time than you estimate.`;
@@ -90,6 +97,35 @@ export function LearnedSection({ learned }: { learned: Learned }) {
                 </dd>
               </div>
             )}
+            {learned.practice.length > 0 && (
+              <div className="flex gap-4 py-2.5">
+                <dt className="w-36 shrink-0 text-muted">Practice</dt>
+                <dd>
+                  {learned.practice.map((row, i) => (
+                    <span key={row.subjectName}>
+                      {i > 0 && <span className="text-faint"> · </span>}
+                      {row.subjectName} {row.line}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+            {learned.projects.length > 0 && (
+              <div className="flex gap-4 py-2.5">
+                <dt className="w-36 shrink-0 text-muted">Projects last touched</dt>
+                <dd>
+                  {learned.projects.map((row, i) => (
+                    <span key={row.subjectName}>
+                      {i > 0 && <span className="text-faint"> · </span>}
+                      {row.subjectName}{" "}
+                      <span className={row.idleDays !== null && row.idleDays >= 5 ? "text-accent" : ""}>
+                        {idleText(row.idleDays)}
+                      </span>
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
             {learned.estimateRatio !== null && (
               <div className="flex gap-4 py-2.5">
                 <dt className="w-36 shrink-0 text-muted">Your estimates</dt>
@@ -98,6 +134,8 @@ export function LearnedSection({ learned }: { learned: Learned }) {
             )}
             {learned.usualHours.length === 0 &&
               learned.typicalBySubject.length === 0 &&
+              learned.practice.length === 0 &&
+              learned.projects.length === 0 &&
               learned.estimateRatio === null && (
                 <div className="py-2.5 text-sm text-muted">
                   Habits show up after a few timed sessions and finished tasks.

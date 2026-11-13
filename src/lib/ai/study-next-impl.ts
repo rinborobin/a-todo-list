@@ -35,7 +35,7 @@ export async function suggestStudyNextWithAi(
     const result = await generateTextFn({
       model,
       system: STUDY_NEXT_SYSTEM_PROMPT,
-      prompt: `STUDY_DATA:\n${JSON.stringify(context, null, 2)}\n\nPick what to study next.`,
+      prompt: `STUDY_DATA:\n${JSON.stringify(context, null, 2)}\n\nPick what to work on next.`,
       output: Output.object({ schema: studyNextAiOutputSchema }),
     });
 

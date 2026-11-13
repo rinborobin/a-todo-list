@@ -166,7 +166,7 @@ export function ProgressView(props: ProgressViewProps) {
           </section>
         </div>
 
-        <aside className="order-first space-y-4 lg:order-none" aria-label="What to study next">
+        <aside className="order-first space-y-4 lg:order-none" aria-label="What to do next">
           <StudyNow
             suggestion={ai?.suggestion ?? props.suggestion}
             running={props.running}
@@ -185,12 +185,12 @@ export function ProgressView(props: ProgressViewProps) {
               {ai && (
                 <p className="mb-2 text-[13px] text-muted">
                   {ai.source === "ai"
-                    ? "Suggested by AI from your study history, reviews and deadlines."
+                    ? "Suggested by AI from your history, reviews, milestones and deadlines."
                     : "AI was unavailable, so this is the standard suggestion."}
                 </p>
               )}
               <Button variant="ghost" size="sm" onClick={askAi} disabled={isAsking} className="-ml-3">
-                {isAsking ? "Asking AI…" : ai ? "Ask AI again" : "Ask AI what to study next"}
+                {isAsking ? "Asking AI…" : ai ? "Ask AI again" : "Ask AI what to do next"}
               </Button>
               {aiError && <p className="mt-1 text-[13px] text-danger">{aiError}</p>}
             </div>

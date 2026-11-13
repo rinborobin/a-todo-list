@@ -28,8 +28,24 @@ interface StudyNowProps {
 
 const label = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
+/** "Japanese · Lesson 19 of 40", "Portfolio site · Build login page", ... */
+export function SuggestionLine({ suggestion }: { suggestion: StudyNextSuggestion }) {
+  const focus = suggestion.topicName ?? suggestion.resourceNext ?? null;
+  return (
+    <p className="mt-1 text-[15px]">
+      <span className="font-semibold">{suggestion.subjectName}</span>
+      {focus && <span className="font-semibold"> · {focus}</span>}
+      {!focus && suggestion.taskTitle && <span className="text-ink-soft"> · {suggestion.taskTitle}</span>}
+      {!focus && suggestion.taskTitle && suggestion.milestoneName && (
+        <span className="text-muted"> ({suggestion.milestoneName})</span>
+      )}
+      <span className="text-muted"> · {formatDuration(suggestion.minutes)}</span>
+    </p>
+  );
+}
+
 /**
- * "Study next" suggestion with a one-tap timer. While a timer runs it shows the
+ * "Next up" suggestion with a one-tap timer. While a timer runs it shows the
  * elapsed time; after stopping it asks how the session went.
  */
 export function StudyNow({ suggestion, running, subjects, initialNow, timezone }: StudyNowProps) {
@@ -48,9 +64,12 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
     setError(null);
     setPlanned(null);
     startPlanning(async () => {
+      // A suggested task (a project's next task, a class assignment) is
+      // planned as itself; otherwise a study block is added.
       const result = await planStudyBlockAction({
         subjectId: s.subjectId,
         topicId: s.topicId,
+        taskId: !s.topicId ? s.taskId : null,
         minutes: s.minutes,
         reviewOn: s.reviewOn,
       });
@@ -161,17 +180,19 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
   if (subjects.length === 0) {
     return (
       <section aria-label="Set up studying" className="border-l-2 border-ink pl-4">
-        <p className="text-[15px]">Tell the app what you are studying.</p>
-        <p className="text-[13px] text-muted">It learns from your sessions and suggests what to study next.</p>
+        <p className="text-[15px]">Tell the app what you are working on.</p>
+        <p className="text-[13px] text-muted">
+          Classes, side projects, things you learn on your own. It learns from your sessions and suggests what is next.
+        </p>
         <Link href="/setup" className={`${buttonClasses("primary", "sm")} mt-3`}>
-          Set up subjects
+          Set up
         </Link>
       </section>
     );
   }
 
   return (
-    <section aria-label="Study next" className="border-l-2 border-ink pl-4">
+    <section aria-label="Next up" className="border-l-2 border-ink pl-4">
       {flood && (
         <div
           className="focus-flood-in fixed inset-0 z-50 bg-ink"
@@ -179,19 +200,14 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
           aria-hidden="true"
         />
       )}
-      <p className={label}>Study next</p>
+      <p className={label}>Next up</p>
       {suggestion ? (
         <>
-          <p className="mt-1 text-[15px]">
-            <span className="font-semibold">{suggestion.subjectName}</span>
-            {suggestion.topicName && <span className="font-semibold"> · {suggestion.topicName}</span>}
-            {!suggestion.topicName && suggestion.taskTitle && <span className="text-ink-soft"> · {suggestion.taskTitle}</span>}
-            <span className="text-muted"> · {formatDuration(suggestion.minutes)}</span>
-          </p>
+          <SuggestionLine suggestion={suggestion} />
           {suggestion.reason && <p className="text-[13px] text-muted">{suggestion.reason}</p>}
         </>
       ) : (
-        <p className="mt-1 text-sm text-muted">Pick a subject to start a timer.</p>
+        <p className="mt-1 text-sm text-muted">Pick something to start a timer.</p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -219,7 +235,7 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
           </>
         )}
         <label htmlFor="study-other" className="sr-only">
-          Study another subject
+          Work on something else
         </label>
         <select
           id="study-other"
@@ -228,7 +244,7 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
           onChange={(e) => e.target.value && start(e.target.value, null, defaultGoalMinutes(null), e.currentTarget)}
           className="h-8 cursor-pointer rounded-lg bg-transparent px-1 text-[13px] text-muted hover:text-ink focus:outline-none"
         >
-          <option value="">{suggestion ? "or something else…" : "Choose a subject…"}</option>
+          <option value="">{suggestion ? "or something else…" : "Choose…"}</option>
           {subjects.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}

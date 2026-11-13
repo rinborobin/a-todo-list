@@ -1,6 +1,7 @@
 import { getPlansForRangeQuery } from "@/actions/planner";
 import { getUserTimezoneQuery } from "@/actions/availability";
-import { listTopicsQuery } from "@/actions/study";
+import { listSubjectsQuery, listTopicsQuery } from "@/actions/study";
+import { toRailSubjects } from "@/components/planner/rail-subjects";
 import { WeekView } from "@/components/planner/week-view";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
 
@@ -15,7 +16,12 @@ export default async function WeekPage({
 }: {
   searchParams: Promise<{ start?: string }>;
 }) {
-  const [{ start }, timezone, topics] = await Promise.all([searchParams, getUserTimezoneQuery(), listTopicsQuery()]);
+  const [{ start }, timezone, topics, subjects] = await Promise.all([
+    searchParams,
+    getUserTimezoneQuery(),
+    listTopicsQuery(),
+    listSubjectsQuery(),
+  ]);
   const today = toLocalDateKey(new Date(), timezone);
   const startDate = start && DATE_KEY.test(start) ? start : today;
   const endDate = addDaysToDateKey(startDate, 6);
@@ -31,6 +37,7 @@ export default async function WeekPage({
       endDate={endDate}
       now={new Date()}
       topics={topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
+      subjects={toRailSubjects(subjects)}
     />
   );
 }

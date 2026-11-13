@@ -2,6 +2,7 @@ import { getTodayQuery } from "@/actions/planner";
 import { getStudyContextQuery } from "@/actions/study";
 import { TodayView } from "@/components/today/today-view";
 import { rankStudyNext } from "@/lib/study/next";
+import { toRailSubjects } from "@/components/planner/rail-subjects";
 
 export const metadata = {
   title: "Today",
@@ -42,6 +43,7 @@ export default async function TodayPage() {
         suggestion,
         running,
         subjects: activeSubjects.map(({ id, name }) => ({ id, name })),
+        railSubjects: toRailSubjects(study.subjects),
         topics: study.topics
           .filter((t) => !t.archivedAt)
           .map(({ id, name, subjectId }) => ({ id, name, subjectId })),

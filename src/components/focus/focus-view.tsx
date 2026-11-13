@@ -7,6 +7,8 @@ import { GOAL_CHOICES, computeFocusTime, formatTimer } from "@/lib/study/focus-t
 import { formatDuration } from "@/lib/format";
 import { RatingPicker } from "@/components/study/rating-picker";
 import { SessionTopicPicker } from "@/components/study/topic-picker";
+import { ResourceStep, TaskDoneToggle } from "@/components/study/follow-ups";
+import type { SubjectKind } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { RollingDigits } from "./rolling-digits";
@@ -297,8 +299,12 @@ function FocusSession({
             capped={phase.capped}
             sessionId={phase.sessionId}
             subject={data.subjectName}
+            subjectId={data.subjectId}
+            kind={data.subjectKind}
             task={data.taskTitle}
-            topics={data.subjectId ? data.topics : null}
+            taskId={data.taskId}
+            resourceNext={data.resourceNext}
+            topics={data.subjectId && data.subjectKind !== "PROJECT" ? data.topics : null}
             topicId={data.topicId}
             onDone={() => router.push("/today")}
           />
@@ -390,7 +396,11 @@ function Finished({
   capped,
   sessionId,
   subject,
+  subjectId,
+  kind,
   task,
+  taskId,
+  resourceNext,
   topics,
   topicId,
   onDone,
@@ -399,7 +409,12 @@ function Finished({
   capped: boolean;
   sessionId: string;
   subject: string | null;
+  subjectId: string | null;
+  kind: SubjectKind | null;
   task: string | null;
+  taskId: string | null;
+  /** Self-learning: the next unit of the book or course, e.g. "Lesson 19". */
+  resourceNext: string | null;
   /** Null when the session has no subject (topics need one). */
   topics: { id: string; name: string }[] | null;
   topicId: string | null;
@@ -436,10 +451,24 @@ function Finished({
       <p className="mt-1 text-[15px] text-muted">{[subject, task].filter(Boolean).join(" · ") || "Study session"}</p>
       {capped && <p className="mt-2 text-[13px] text-muted">The timer ran over 8 hours, so it was capped at 8h.</p>}
 
-      <div className="rise mt-8 flex flex-col items-center gap-2" style={{ animationDelay: "0.45s" }}>
-        <p className="text-sm text-muted">How did it go?</p>
-        <RatingPicker sessionId={sessionId} />
-      </div>
+      {kind === "PROJECT" ? (
+        taskId &&
+        task && (
+          <div className="rise mt-8 w-full max-w-sm" style={{ animationDelay: "0.45s" }}>
+            <TaskDoneToggle taskId={taskId} title={task} />
+          </div>
+        )
+      ) : (
+        <div className="rise mt-8 flex flex-col items-center gap-2" style={{ animationDelay: "0.45s" }}>
+          <p className="text-sm text-muted">How did it go?</p>
+          <RatingPicker sessionId={sessionId} />
+        </div>
+      )}
+      {kind === "SELF_LEARNING" && subjectId && resourceNext && (
+        <div className="rise mt-6" style={{ animationDelay: "0.5s" }}>
+          <ResourceStep subjectId={subjectId} next={resourceNext} />
+        </div>
+      )}
       {topics && (
         <div className="rise mt-6 w-full max-w-sm text-left" style={{ animationDelay: "0.55s" }}>
           <SessionTopicPicker sessionId={sessionId} topics={topics} initialTopicId={topicId} />

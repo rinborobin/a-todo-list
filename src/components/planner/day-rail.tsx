@@ -7,6 +7,15 @@ import { describeDue, formatClock, formatDuration, formatStartsIn } from "@/lib/
 import { CheckIcon } from "@/components/ui/icons";
 import { RatingPicker } from "@/components/study/rating-picker";
 import { SessionTopicPicker } from "@/components/study/topic-picker";
+import { ResourceStep } from "@/components/study/follow-ups";
+import type { SubjectKind } from "@/db/schema";
+
+export interface RailSubject {
+  id: string;
+  kind: SubjectKind;
+  /** Self-learning: the next unit of the book or course, e.g. "Lesson 19". */
+  resourceNext: string | null;
+}
 
 type Item = PlanWithItems["items"][number];
 type Status = Item["status"];
@@ -20,11 +29,13 @@ interface DayRailProps {
   onStatusChange?: (id: string, status: Status) => void;
   /** Topics with their subject, offered after a block is ticked. */
   topics?: { id: string; name: string; subjectId: string }[];
+  /** Kinds of subjects, so the prompt after a block fits (no rating for projects). */
+  subjects?: RailSubject[];
 }
 
 const FREE_GAP_MINUTES = 15;
 
-export function DayRail({ items, timezone, now, live = false, onStatusChange, topics = [] }: DayRailProps) {
+export function DayRail({ items, timezone, now, live = false, onStatusChange, topics = [], subjects = [] }: DayRailProps) {
   const [overrides, setOverrides] = useState<Record<string, Status>>({});
   const [error, setError] = useState<string | null>(null);
   const [ratingPrompt, setRatingPrompt] = useState<{ itemId: string; sessionId: string } | null>(null);
@@ -79,6 +90,7 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange, to
           const minutes = Math.round((item.endTime.getTime() - item.startTime.getTime()) / 60_000);
           const due = item.task?.deadline ? describeDue(item.task.deadline, now, timezone) : null;
           const title = item.task?.title ?? "Removed task";
+          const railSubject = item.task?.subjectId ? subjects.find((s) => s.id === item.task!.subjectId) : undefined;
 
           return (
             <Fragment key={item.id}>
@@ -146,9 +158,15 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange, to
                   )}
                 </p>
 
-                {ratingPrompt?.itemId === item.id && isDone && (
+                {/* Ticking a project block already finishes its task: nothing to rate. */}
+                {ratingPrompt?.itemId === item.id && isDone && railSubject?.kind !== "PROJECT" && (
                   <div className="mt-2 space-y-3">
                     <RatingPicker sessionId={ratingPrompt.sessionId} prompt onDone={() => setRatingPrompt(null)} />
+                    {railSubject?.kind === "SELF_LEARNING" && railSubject.resourceNext && (
+                      <div className="flex">
+                        <ResourceStep subjectId={railSubject.id} next={railSubject.resourceNext} />
+                      </div>
+                    )}
                     {item.task?.subjectId && (
                       <SessionTopicPicker
                         sessionId={ratingPrompt.sessionId}

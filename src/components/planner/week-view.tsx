@@ -12,7 +12,7 @@ import { addDaysToDateKey, getDatesInRange } from "@/lib/scheduling/timezone";
 import { formatDayHeading } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
-import { DayRail } from "./day-rail";
+import { DayRail, type RailSubject } from "./day-rail";
 import { ProposalForm } from "./proposal-form";
 import { ProposalView } from "./proposal-view";
 
@@ -25,6 +25,7 @@ interface WeekViewProps {
   endDate: string;
   now: Date;
   topics: { id: string; name: string; subjectId: string }[];
+  subjects: RailSubject[];
 }
 
 function formatRange(start: string, end: string) {
@@ -36,7 +37,7 @@ function formatRange(start: string, end: string) {
     : `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short" })}`;
 }
 
-export function WeekView({ plans, loadError, timezone, today, startDate, endDate, now, topics }: WeekViewProps) {
+export function WeekView({ plans, loadError, timezone, today, startDate, endDate, now, topics, subjects }: WeekViewProps) {
   const [pending, setPending] = useState<"plain" | "ai" | null>(null);
   const [, startTransition] = useTransition();
   const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
@@ -131,7 +132,7 @@ export function WeekView({ plans, loadError, timezone, today, startDate, endDate
                 {isToday && <span className="text-xs font-semibold uppercase tracking-[0.08em] text-accent">Today</span>}
               </h2>
               {items.length > 0 ? (
-                <DayRail items={items} timezone={timezone} now={now} live={isToday} topics={topics} />
+                <DayRail items={items} timezone={timezone} now={now} live={isToday} topics={topics} subjects={subjects} />
               ) : (
                 <p className="border-l border-line pl-6 text-sm text-faint">Nothing planned</p>
               )}

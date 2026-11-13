@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { TodayData } from "@/actions/planner";
 import type { Task } from "@/db/schema";
 import type { StudyNextSuggestion } from "@/lib/study/next";
-import { DayRail } from "@/components/planner/day-rail";
+import { DayRail, type RailSubject } from "@/components/planner/day-rail";
 import { StudyNow, type RunningTimer } from "@/components/study/study-now";
 import { useMinuteClock } from "@/components/study/use-minute-clock";
 import { buttonClasses } from "@/components/ui/button";
@@ -22,6 +22,7 @@ interface TodayViewProps {
     running: RunningTimer | null;
     subjects: { id: string; name: string }[];
     topics: { id: string; name: string; subjectId: string }[];
+    railSubjects: RailSubject[];
   };
 }
 
@@ -113,6 +114,7 @@ export function TodayView({ data, initialNow, study }: TodayViewProps) {
               now={now}
               live
               topics={study.topics}
+              subjects={study.railSubjects}
               onStatusChange={(id, status) => setStatuses((prev) => ({ ...prev, [id]: status }))}
             />
           )}

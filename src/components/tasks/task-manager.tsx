@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/field";
 import { PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { TaskRow } from "./task-row";
 import { TaskFormDialog } from "./task-form-dialog";
+import type { TaskSubjectOption } from "./subject-options";
 import { DeleteTaskDialog } from "./delete-task-dialog";
 
 interface TaskManagerProps {
   initialTasks: Task[];
   timezone: string;
   now: Date;
-  subjects: { id: string; name: string; archived: boolean }[];
+  subjects: TaskSubjectOption[];
 }
 
 type View = "open" | "done" | "all";
@@ -36,6 +37,10 @@ function isOpen(task: Task) {
 export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManagerProps) {
   const subjectName = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects]);
   const activeSubjects = useMemo(() => subjects.filter((s) => !s.archived), [subjects]);
+  const milestoneName = useMemo(
+    () => new Map(subjects.flatMap((s) => s.milestones.map((m) => [m.id, m.name] as const))),
+    [subjects]
+  );
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -91,6 +96,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
     estimatedMinutes?: number | null;
     deadline?: string | null;
     subjectId?: string | null;
+    milestoneId?: string | null;
   }) => {
     setActionError(null);
     const res = editingTask
@@ -102,6 +108,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
           estimatedMinutes: data.estimatedMinutes ?? null,
           deadline: data.deadline ?? null,
           subjectId: data.subjectId ?? null,
+          milestoneId: data.milestoneId ?? null,
         })
       : await createTaskAction({
           title: data.title,
@@ -111,6 +118,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
           estimatedMinutes: data.estimatedMinutes ?? null,
           deadline: data.deadline ?? null,
           subjectId: data.subjectId ?? null,
+          milestoneId: data.milestoneId ?? null,
         });
 
     if (!res.success) {
@@ -228,6 +236,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
                     key={task.id}
                     task={task}
                     subjectName={task.subjectId ? subjectName.get(task.subjectId) : undefined}
+                    milestoneName={task.milestoneId ? milestoneName.get(task.milestoneId) : undefined}
                     now={now}
                     timezone={timezone}
                     busy={updatingTaskId === task.id}

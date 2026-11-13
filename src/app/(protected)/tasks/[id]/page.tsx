@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getTaskByIdAction } from "@/actions/tasks";
 import { getUserTimezoneQuery } from "@/actions/availability";
-import { listSubjectsQuery } from "@/actions/study";
+import { listMilestonesQuery, listSubjectsQuery } from "@/actions/study";
+import { toTaskSubjectOptions } from "@/components/tasks/subject-options";
 import { TaskDetailPageClient } from "@/components/tasks/task-detail-page-client";
 
 export const metadata = {
@@ -14,10 +15,11 @@ interface TaskDetailPageProps {
 
 export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   const { id } = await params;
-  const [result, timezone, subjects] = await Promise.all([
+  const [result, timezone, subjects, milestones] = await Promise.all([
     getTaskByIdAction(id),
     getUserTimezoneQuery(),
     listSubjectsQuery(),
+    listMilestonesQuery(),
   ]);
 
   if (!result.success) {
@@ -29,7 +31,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
       task={result.data}
       timezone={timezone}
       now={new Date()}
-      subjects={subjects.map((s) => ({ id: s.id, name: s.name, archived: s.archivedAt !== null }))}
+      subjects={toTaskSubjectOptions(subjects, milestones)}
     />
   );
 }

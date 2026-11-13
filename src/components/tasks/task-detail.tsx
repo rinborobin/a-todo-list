@@ -9,6 +9,7 @@ interface TaskDetailProps {
   timezone: string;
   now: Date;
   subjectName?: string | null;
+  milestoneName?: string | null;
   onEdit?: (task: Task) => void;
   onDelete?: (task: Task) => void;
 }
@@ -33,12 +34,13 @@ function formatFull(date: Date, timezone: string) {
   }).format(date);
 }
 
-export function TaskDetail({ task, timezone, now, subjectName = null, onEdit, onDelete }: TaskDetailProps) {
+export function TaskDetail({ task, timezone, now, subjectName = null, milestoneName = null, onEdit, onDelete }: TaskDetailProps) {
   const isClosed = task.status === "COMPLETED" || task.status === "CANCELLED";
   const due = task.deadline && !isClosed ? describeDue(task.deadline, now, timezone) : null;
 
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: "Subject", value: subjectName ?? <span className="text-faint">None</span> },
+    ...(milestoneName ? [{ label: "Milestone", value: milestoneName }] : []),
     {
       label: "Due",
       value: task.deadline ? (

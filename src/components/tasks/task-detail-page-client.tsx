@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Task } from "@/db/schema";
 import { TaskDetail } from "./task-detail";
 import { TaskFormDialog } from "./task-form-dialog";
+import type { TaskSubjectOption } from "./subject-options";
 import { DeleteTaskDialog } from "./delete-task-dialog";
 import { updateTaskAction, deleteTaskAction } from "@/actions/tasks";
 
@@ -12,7 +13,7 @@ interface TaskDetailPageClientProps {
   task: Task;
   timezone: string;
   now: Date;
-  subjects: { id: string; name: string; archived: boolean }[];
+  subjects: TaskSubjectOption[];
 }
 
 export function TaskDetailPageClient({ task, timezone, now, subjects }: TaskDetailPageClientProps) {
@@ -30,6 +31,7 @@ export function TaskDetailPageClient({ task, timezone, now, subjects }: TaskDeta
     estimatedMinutes?: number | null;
     deadline?: string | null;
     subjectId?: string | null;
+    milestoneId?: string | null;
   }) => {
     const res = await updateTaskAction(task.id, {
       title: data.title,
@@ -39,6 +41,7 @@ export function TaskDetailPageClient({ task, timezone, now, subjects }: TaskDeta
       estimatedMinutes: data.estimatedMinutes ?? null,
       deadline: data.deadline ?? null,
       subjectId: data.subjectId ?? null,
+      milestoneId: data.milestoneId ?? null,
     });
 
     if (!res.success) {
@@ -79,6 +82,9 @@ export function TaskDetailPageClient({ task, timezone, now, subjects }: TaskDeta
         timezone={timezone}
         now={now}
         subjectName={subjects.find((s) => s.id === task.subjectId)?.name ?? null}
+        milestoneName={
+          subjects.flatMap((s) => s.milestones).find((m) => m.id === task.milestoneId)?.name ?? null
+        }
         onEdit={() => setIsEditing(true)}
         onDelete={() => setIsDeleting(true)}
       />

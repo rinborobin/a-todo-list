@@ -7,6 +7,7 @@ import { createSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorNote, Field, Input, Select, Textarea } from "@/components/ui/field";
+import type { TaskSubjectOption } from "./subject-options";
 
 interface TaskFormDialogProps {
   isOpen: boolean;
@@ -19,9 +20,10 @@ interface TaskFormDialogProps {
     estimatedMinutes?: number | null;
     deadline?: string | null;
     subjectId?: string | null;
+    milestoneId?: string | null;
   }) => Promise<{ success: boolean; error?: string; fieldErrors?: Record<string, string[] | undefined> }>;
   initialTask?: Task | null;
-  subjects?: { id: string; name: string }[];
+  subjects?: TaskSubjectOption[];
 }
 
 const priorities: { label: string; value: TaskPriority }[] = [
@@ -64,7 +66,18 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask, subject
   );
   const [deadline, setDeadline] = useState<string>(toDatetimeLocalString(initialTask?.deadline));
   const [subjectOptions, setSubjectOptions] = useState(subjects);
-  const [subjectId, setSubjectId] = useState<string>(initialTask?.subjectId ?? "");
+  const [subjectId, setSubjectIdState] = useState<string>(initialTask?.subjectId ?? "");
+  const [milestoneId, setMilestoneId] = useState<string>(initialTask?.milestoneId ?? "");
+  const setSubjectId = (id: string) => {
+    setSubjectIdState(id);
+    // A milestone only fits its own project.
+    setMilestoneId("");
+  };
+  const selectedSubject = subjectOptions.find((s) => s.id === subjectId);
+  const milestoneOptions =
+    selectedSubject?.kind === "PROJECT"
+      ? selectedSubject.milestones.filter((m) => !m.done || m.id === milestoneId)
+      : [];
   const [newSubject, setNewSubject] = useState<string | null>(null);
   const [subjectError, setSubjectError] = useState<string | null>(null);
 
@@ -76,7 +89,10 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask, subject
       setSubjectError(res.error);
       return;
     }
-    setSubjectOptions((prev) => [...prev, { id: res.data.id, name: res.data.name }]);
+    setSubjectOptions((prev) => [
+      ...prev,
+      { id: res.data.id, name: res.data.name, archived: false, kind: res.data.kind, milestones: [] },
+    ]);
     setSubjectId(res.data.id);
     setNewSubject(null);
   };
@@ -98,6 +114,7 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask, subject
       estimatedMinutes: estimatedMinutes.trim() === "" ? null : Number(estimatedMinutes),
       deadline: deadline.trim() === "" ? null : new Date(deadline).toISOString(),
       subjectId: subjectId || null,
+      milestoneId: milestoneOptions.some((m) => m.id === milestoneId) ? milestoneId : null,
     };
 
     const schema = isEditing ? updateTaskSchema : createTaskSchema;
@@ -177,6 +194,19 @@ export function TaskFormDialog({ isOpen, onClose, onSubmit, initialTask, subject
             </div>
           )}
         </Field>
+
+        {milestoneOptions.length > 0 && (
+          <Field label="Milestone" htmlFor="task-milestone" error={fieldErrors.milestoneId?.[0]}>
+            <Select id="task-milestone" value={milestoneId} onChange={(e) => setMilestoneId(e.target.value)}>
+              <option value="">No milestone</option>
+              {milestoneOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Due" htmlFor="task-deadline" error={fieldErrors.deadline?.[0]} hint="Leave empty if there is no deadline.">

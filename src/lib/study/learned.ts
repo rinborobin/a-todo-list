@@ -4,6 +4,7 @@ import { estimateRatio, typicalMinutes, usualHours } from "./habits";
 import { replayMemory, reviewStatus } from "./memory";
 import type { SubjectLike, TopicLike } from "./next";
 import type { SessionLike } from "./stats";
+import { describeStreak, practiceStreak } from "./streak";
 
 export interface ReviewItem {
   key: string;
@@ -22,6 +23,10 @@ export interface Learned {
   typicalBySubject: { subjectName: string; minutes: number }[];
   usualHours: number[];
   estimateRatio: number | null;
+  /** Side projects, longest untouched first; idleDays is null when never touched. */
+  projects: { subjectName: string; idleDays: number | null }[];
+  /** Self-learning with a days-a-week target: "5-day streak", "2 of 3 days this week". */
+  practice: { subjectName: string; line: string }[];
 }
 
 const QUEUE_HORIZON_DAYS = 7;
@@ -45,6 +50,8 @@ export function buildLearned(input: {
   const queue: ReviewItem[] = [];
 
   for (const subject of active) {
+    // Projects are built, not memorised: no reviews.
+    if (subject.kind === "PROJECT") continue;
     const subjectSessions = sessions.filter((s) => s.subjectId === subject.id);
     const subjectTopics = topics.filter((t) => t.subjectId === subject.id && !t.archivedAt);
     let topicEntries = 0;
@@ -52,7 +59,7 @@ export function buildLearned(input: {
     for (const topic of subjectTopics) {
       const memory = replayMemory(
         subjectSessions.filter((s) => s.topicId === topic.id),
-        { timezone, examDate: subject.examDate }
+        { timezone, examDate: subject.kind === "SELF_LEARNING" ? null : subject.examDate }
       );
       if (!memory) continue;
       topicEntries += 1;
@@ -70,7 +77,10 @@ export function buildLearned(input: {
 
     // Subjects studied without topics still get one entry for the whole subject.
     if (topicEntries === 0) {
-      const memory = replayMemory(subjectSessions, { timezone, examDate: subject.examDate });
+      const memory = replayMemory(subjectSessions, {
+        timezone,
+        examDate: subject.kind === "SELF_LEARNING" ? null : subject.examDate,
+      });
       if (memory) {
         const status = reviewStatus(memory, today);
         queue.push({
@@ -101,5 +111,28 @@ export function buildLearned(input: {
       .filter((row): row is { subjectName: string; minutes: number } => row.minutes !== null),
     usualHours: usualHours(recent, timezone),
     estimateRatio: estimateRatio(finishedTaskEstimates),
+    projects: active
+      .filter((subject) => subject.kind === "PROJECT")
+      .map((subject) => {
+        const last = sessions
+          .filter((s) => s.subjectId === subject.id)
+          .reduce<Date | null>((latest, s) => (!latest || s.startedAt > latest ? s.startedAt : latest), null);
+        const idleDays = last
+          ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${toLocalDateKey(last, timezone)}T00:00:00Z`)) / 86_400_000)
+          : null;
+        return { subjectName: subject.name, idleDays };
+      })
+      .sort((a, b) => (b.idleDays ?? Infinity) - (a.idleDays ?? Infinity) || a.subjectName.localeCompare(b.subjectName)),
+    practice: active
+      .filter((subject) => subject.kind === "SELF_LEARNING" && subject.practiceDaysPerWeek)
+      .map((subject) => ({
+        subjectName: subject.name,
+        line: describeStreak(
+          practiceStreak(
+            sessions.filter((s) => s.subjectId === subject.id),
+            { now, timezone, daysPerWeek: subject.practiceDaysPerWeek! }
+          )
+        ),
+      })),
   };
 }

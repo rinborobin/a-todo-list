@@ -297,3 +297,173 @@ describe("rankStudyNext v2: coach-created review tasks", () => {
     assert.match(ranked[0].reason, /Limits due for review/);
   });
 });
+
+describe("rankStudyNext v3: kinds", () => {
+  const base = { now, timezone: "UTC" };
+  const daysAgo = (n: number) => new Date(now.getTime() - n * D);
+  // Studied yesterday and felt fine: nothing pressing.
+  const coveredClass: SubjectLike = { id: "calc", name: "Calculus", archivedAt: null, kind: "CLASS", confidence: "STRONG" };
+  const coveredSessions = [
+    session({ subjectId: "calc", minutes: 60, startedAt: daysAgo(3), rating: "GOT_IT" }),
+    session({ subjectId: "calc", minutes: 60, startedAt: daysAgo(1), rating: "GOT_IT" }),
+  ];
+  const site: SubjectLike = { id: "site", name: "Portfolio site", archivedAt: null, kind: "PROJECT" };
+  const mvp = (targetDate: string | null) => ({
+    id: "mvp",
+    subjectId: "site",
+    name: "MVP",
+    targetDate,
+    completedAt: null,
+    sortOrder: 0,
+  });
+
+  it("raises a side project nobody touched for a week above a well-covered class", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [coveredClass, site],
+      openTasks: [task({ id: "login", title: "Build login page", subjectId: "site" })],
+      sessions: [...coveredSessions, session({ subjectId: "site", minutes: 90, startedAt: daysAgo(7) })],
+    });
+    assert.equal(ranked[0].subjectId, "site");
+    assert.equal(ranked[0].kind, "PROJECT");
+    assert.equal(ranked[0].taskTitle, "Build login page");
+    assert.match(ranked[0].reason, /not touched for 7 days/);
+    assert.equal(ranked[0].reviewOn, null);
+  });
+
+  it("never talks about reviews for a project", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [site],
+      openTasks: [],
+      sessions: [session({ subjectId: "site", minutes: 60, startedAt: daysAgo(20), rating: "STRUGGLED" })],
+    });
+    assert.doesNotMatch(ranked[0].reason, /review|not studied yet/);
+  });
+
+  it("calls an untouched project not started", () => {
+    const ranked = rankStudyNext({ ...base, subjects: [site], openTasks: [], sessions: [] });
+    assert.match(ranked[0].reason, /not started yet/);
+  });
+
+  it("picks the next task of the current milestone and names the milestone", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [site],
+      milestones: [mvp(null)],
+      openTasks: [
+        task({ id: "loose", title: "Write blog post", subjectId: "site", deadline: new Date(now.getTime() + 2 * D) }),
+        task({ id: "db", title: "Set up database", subjectId: "site", milestoneId: "mvp" }),
+      ],
+      sessions: [session({ subjectId: "site", minutes: 60, startedAt: daysAgo(1) })],
+    });
+    assert.equal(ranked[0].taskId, "db");
+    assert.equal(ranked[0].milestoneName, "MVP");
+  });
+
+  it("ramps a project up as its milestone date gets close", () => {
+    const score = (targetDate: string) =>
+      rankStudyNext({
+        ...base,
+        subjects: [site],
+        milestones: [mvp(targetDate)],
+        openTasks: [],
+        sessions: [session({ subjectId: "site", minutes: 60, startedAt: daysAgo(1) })],
+      })[0];
+    const far = score("2026-12-02");
+    const near = score("2026-11-15");
+    assert.ok(near.score > far.score);
+    assert.match(near.reason, /MVP due in 3 days/);
+  });
+
+  it("puts a class with an exam this week ahead of a neglected project", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [{ ...coveredClass, examDate: "2026-11-16" }, site],
+      milestones: [mvp("2026-11-18")],
+      openTasks: [task({ id: "login", subjectId: "site", milestoneId: "mvp" })],
+      sessions: [...coveredSessions, session({ subjectId: "site", minutes: 90, startedAt: daysAgo(8) })],
+    });
+    assert.equal(ranked[0].subjectId, "calc");
+    assert.match(ranked[0].reason, /exam in 4 days/);
+  });
+
+  it("puts a class with an overdue task ahead of a neglected project", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [coveredClass, site],
+      openTasks: [
+        task({ id: "ps5", title: "Problem set 5", subjectId: "calc", deadline: new Date(now.getTime() - 2 * H) }),
+        task({ id: "login", subjectId: "site" }),
+      ],
+      sessions: [...coveredSessions, session({ subjectId: "site", minutes: 90, startedAt: daysAgo(10) })],
+    });
+    assert.equal(ranked[0].subjectId, "calc");
+  });
+
+  describe("self-learning", () => {
+    const japanese: SubjectLike = {
+      id: "jp",
+      name: "Japanese",
+      archivedAt: null,
+      kind: "SELF_LEARNING",
+      practiceDaysPerWeek: 7,
+      resourceName: "Genki I",
+      resourceUnit: "lesson",
+      resourceTotal: 40,
+      resourceDone: 18,
+    };
+    const daily = [4, 3, 2, 1].map((n) => session({ subjectId: "jp", minutes: 20, startedAt: daysAgo(n), rating: "GOT_IT" }));
+
+    it("raises it when the daily streak would break today", () => {
+      const ranked = rankStudyNext({ ...base, subjects: [coveredClass, japanese], openTasks: [], sessions: [...coveredSessions, ...daily] });
+      assert.equal(ranked[0].subjectId, "jp");
+      assert.match(ranked[0].reason, /keep your 4-day streak/);
+    });
+
+    it("is quiet once today is practised", () => {
+      const today = session({ subjectId: "jp", minutes: 20, startedAt: new Date(now.getTime() - H), rating: "GOT_IT" });
+      const ranked = rankStudyNext({ ...base, subjects: [japanese], openTasks: [], sessions: [...daily, today] });
+      assert.doesNotMatch(ranked[0].reason, /streak/);
+    });
+
+    it("suggests the next lesson when no topic is due", () => {
+      const ranked = rankStudyNext({ ...base, subjects: [japanese], openTasks: [], sessions: daily });
+      assert.equal(ranked[0].resourceNext, "Lesson 19 of 40");
+      assert.equal(ranked[0].topicId, null);
+    });
+
+    it("still reviews a due topic before moving on in the book", () => {
+      const ranked = rankStudyNext({
+        ...base,
+        subjects: [japanese],
+        topics: [{ id: "kanji", name: "Kanji", subjectId: "jp", archivedAt: null }],
+        openTasks: [],
+        sessions: [session({ subjectId: "jp", topicId: "kanji", minutes: 20, startedAt: daysAgo(6), rating: "STRUGGLED" })],
+      });
+      assert.equal(ranked[0].topicName, "Kanji");
+      assert.match(ranked[0].reason, /Kanji due for review/);
+    });
+
+    it("counts practice days against a weekly target", () => {
+      const ranked = rankStudyNext({
+        ...base,
+        subjects: [{ ...japanese, practiceDaysPerWeek: 5 }],
+        openTasks: [],
+        // Only Tuesday so far: 4 more days needed with 4 left.
+        sessions: [session({ subjectId: "jp", minutes: 20, startedAt: daysAgo(2), rating: "GOT_IT" })],
+      });
+      assert.match(ranked[0].reason, /1 of 5 days this week/);
+    });
+
+    it("mentions a target date that is getting close", () => {
+      const ranked = rankStudyNext({
+        ...base,
+        subjects: [{ ...japanese, practiceDaysPerWeek: null, examDate: "2026-11-20" }],
+        openTasks: [],
+        sessions: [session({ subjectId: "jp", minutes: 20, startedAt: daysAgo(1), rating: "GOT_IT" })],
+      });
+      assert.match(ranked[0].reason, /target in 8 days/);
+    });
+  });
+});

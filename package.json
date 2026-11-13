@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/study/focus-time.test.ts src/lib/study/memory.test.ts src/lib/study/habits.test.ts src/lib/study/learned.test.ts src/lib/ai/study-next.test.ts src/lib/allowed-emails.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts",
+    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/study/focus-time.test.ts src/lib/study/memory.test.ts src/lib/study/habits.test.ts src/lib/study/learned.test.ts src/lib/study/streak.test.ts src/lib/study/progress.test.ts src/lib/ai/study-next.test.ts src/lib/allowed-emails.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

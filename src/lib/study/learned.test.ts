@@ -60,3 +60,48 @@ describe("buildLearned", () => {
     assert.equal(learned.estimateRatio, null);
   });
 });
+
+describe("buildLearned: kinds", () => {
+  const base = { topics: [], finishedTaskEstimates: [], timezone: "UTC", now };
+
+  it("keeps projects out of the review queue and tracks when they were last touched", () => {
+    const learned = buildLearned({
+      ...base,
+      subjects: [
+        { id: "site", name: "Portfolio site", archivedAt: null, kind: "PROJECT" as const },
+        { id: "app", name: "Habit app", archivedAt: null, kind: "PROJECT" as const },
+      ],
+      sessions: [
+        { subjectId: "site", topicId: null, startedAt: ago(9), minutes: 60, rating: "STRUGGLED", source: "TIMER" },
+        { subjectId: "site", topicId: null, startedAt: ago(5), minutes: 60, rating: null, source: "TIMER" },
+      ],
+    });
+    assert.equal(learned.reviewQueue.length, 0);
+    assert.deepEqual(learned.projects, [
+      { subjectName: "Habit app", idleDays: null },
+      { subjectName: "Portfolio site", idleDays: 5 },
+    ]);
+  });
+
+  it("describes the practice rhythm of self-learning", () => {
+    const learned = buildLearned({
+      ...base,
+      subjects: [
+        { id: "jp", name: "Japanese", archivedAt: null, kind: "SELF_LEARNING" as const, practiceDaysPerWeek: 7 },
+        { id: "rust", name: "Rust", archivedAt: null, kind: "SELF_LEARNING" as const, practiceDaysPerWeek: 3 },
+        { id: "piano", name: "Piano", archivedAt: null, kind: "SELF_LEARNING" as const },
+      ],
+      sessions: [
+        { subjectId: "jp", topicId: null, startedAt: ago(2), minutes: 20, rating: "OK", source: "TIMER" },
+        { subjectId: "jp", topicId: null, startedAt: ago(1), minutes: 20, rating: "OK", source: "TIMER" },
+        { subjectId: "rust", topicId: null, startedAt: ago(1), minutes: 45, rating: "OK", source: "TIMER" },
+      ],
+    });
+    assert.deepEqual(learned.practice, [
+      { subjectName: "Japanese", line: "keep your 2-day streak" },
+      { subjectName: "Rust", line: "1 of 3 days this week" },
+    ]);
+    // Self-learning still gets reviews.
+    assert.ok(learned.reviewQueue.some((r) => r.subjectName === "Japanese"));
+  });
+});

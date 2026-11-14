@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull, sql as sqlTag } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { studySession, subject, topic, user, type Topic } from "@/db/schema";
+import { studySession, subject, topic, user, type StudyRating, type Topic } from "@/db/schema";
 import { requireAuth } from "@/lib/session";
 import { safeErrorMessage } from "@/lib/error";
 import { takeAiQuota } from "@/lib/ai-quota";
@@ -89,6 +89,21 @@ export async function readOutlineAction(formData: FormData): Promise<ActionResul
   } catch (err) {
     return { success: false, error: safeErrorMessage(err, "Could not read the outline") };
   }
+}
+
+/** Latest rating per studied topic, for the topic lists on Me. */
+export async function getTopicProgressQuery(): Promise<Record<string, { rating: StudyRating | null }>> {
+  const session = await requireAuth();
+  const rows = await db.query.studySession.findMany({
+    where: and(eq(studySession.userId, session.user.id), isNotNull(studySession.topicId), isNotNull(studySession.endedAt)),
+    columns: { topicId: true, startedAt: true, rating: true },
+  });
+  const latest = new Map<string, { at: number; rating: (typeof rows)[number]["rating"] }>();
+  for (const r of rows) {
+    const at = r.startedAt.getTime();
+    if (!latest.has(r.topicId!) || at > latest.get(r.topicId!)!.at) latest.set(r.topicId!, { at, rating: r.rating });
+  }
+  return Object.fromEntries([...latest].map(([id, v]) => [id, { rating: v.rating }]));
 }
 
 const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

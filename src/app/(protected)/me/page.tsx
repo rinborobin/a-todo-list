@@ -4,6 +4,7 @@ import { AvailabilityManager } from "@/components/availability/availability-mana
 import { SignOutButton } from "@/components/shell/sign-out-button";
 import { getMilestoneProgressQuery, listMilestonesQuery, listSubjectsQuery, listTopicsQuery } from "@/actions/study";
 import { SubjectsManager } from "@/components/study/subjects-manager";
+import { getTopicProgressQuery } from "@/actions/outline";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 
 export const metadata = {
@@ -12,13 +13,14 @@ export const metadata = {
 
 export default async function MePage() {
   const session = await requireAuth("/me");
-  const [blocks, timezone, subjects, topics, milestones, milestoneProgress] = await Promise.all([
+  const [blocks, timezone, subjects, topics, milestones, milestoneProgress, topicProgress] = await Promise.all([
     getUserAvailabilityQuery(),
     getUserTimezoneQuery(),
     listSubjectsQuery(),
     listTopicsQuery(),
     listMilestonesQuery(),
     getMilestoneProgressQuery(),
+    getTopicProgressQuery(),
   ]);
 
   return (
@@ -35,7 +37,18 @@ export default async function MePage() {
       <div className="mt-10">
         <SubjectsManager
           initialSubjects={subjects}
-          topics={topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
+          topics={topics
+            .filter((t) => !t.archivedAt)
+            .map(({ id, name, subjectId, position, origin, plannedOn, reason }) => ({
+              id,
+              name,
+              subjectId,
+              position,
+              origin,
+              plannedOn,
+              reason,
+            }))}
+          topicProgress={topicProgress}
           milestones={milestones}
           milestoneProgress={milestoneProgress}
           today={toLocalDateKey(new Date(), timezone)}

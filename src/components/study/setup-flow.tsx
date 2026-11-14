@@ -13,6 +13,7 @@ import { KIND_LABEL } from "@/lib/study/labels";
 import { KindPicker, SubjectSetupFields, type SetupSubject } from "./subject-setup-fields";
 import type { EditableMilestone } from "./milestones-editor";
 import { toSetupSubject } from "./setup-subject";
+import { OutlineImport } from "./outline-import";
 
 interface SetupFlowProps {
   initialSubjects: SetupSubject[];
@@ -40,6 +41,9 @@ export function SetupFlow({ initialSubjects, milestones, hasAvailability, today 
   const [subjects, setSubjects] = useState(initialSubjects);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SubjectKind>("CLASS");
+  // Subject whose course outline is being imported, and which ones are done.
+  const [importFor, setImportFor] = useState<SetupSubject | null>(null);
+  const [imported, setImported] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -166,6 +170,21 @@ export function SetupFlow({ initialSubjects, milestones, hasAvailability, today 
                   today={today}
                   milestones={milestones.filter((m) => m.subjectId === s.id)}
                 />
+                {s.kind !== "PROJECT" && (
+                  <p className="mt-3 text-sm">
+                    {imported[s.id] ? (
+                      <span className="text-ink-soft">{imported[s.id]} topics saved from the outline.</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setImportFor(s)}
+                        className="text-muted underline-offset-4 hover:text-ink hover:underline"
+                      >
+                        Import course outline (optional)
+                      </button>
+                    )}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -202,6 +221,15 @@ export function SetupFlow({ initialSubjects, milestones, hasAvailability, today 
             </Button>
           </div>
         </section>
+      )}
+      {importFor && (
+        <OutlineImport
+          subjectId={importFor.id}
+          subjectName={importFor.name}
+          open
+          onClose={() => setImportFor(null)}
+          onSaved={(count) => setImported((prev) => ({ ...prev, [importFor.id]: count }))}
+        />
       )}
     </main>
   );

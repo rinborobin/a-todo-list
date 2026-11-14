@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Milestone, Subject, SubjectKind } from "@/db/schema";
+import type { Milestone, StudyRating, Subject, SubjectKind } from "@/db/schema";
 import { archiveSubjectAction, createSubjectAction, renameSubjectAction } from "@/actions/study";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
 import { KindPicker, SubjectSetupFields, describeSetup } from "./subject-setup-fields";
 import { toSetupSubject } from "./setup-subject";
-import { TopicList } from "./topic-list";
+import { TopicOutline, type OutlineTopicRow } from "./topic-outline";
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
@@ -21,12 +21,14 @@ const PLACEHOLDER: Record<SubjectKind, string> = {
 export function SubjectsManager({
   initialSubjects,
   topics,
+  topicProgress,
   milestones,
   milestoneProgress,
   today,
 }: {
   initialSubjects: Subject[];
-  topics: { id: string; name: string; subjectId: string }[];
+  topics: (OutlineTopicRow & { subjectId: string })[];
+  topicProgress: Record<string, { rating: StudyRating | null }>;
   milestones: Milestone[];
   milestoneProgress: Record<string, { done: number; total: number }>;
   today: string;
@@ -155,7 +157,20 @@ export function SubjectsManager({
                     />
                     {s.kind !== "PROJECT" && (
                       <div className="mt-5">
-                        <TopicList topics={topics.filter((t) => t.subjectId === s.id)} />
+                        {(() => {
+                          const own = topics.filter((t) => t.subjectId === s.id);
+                          // Remount when the server list changes (import, add, rename).
+                          const signature = own.map((t) => `${t.id}:${t.name}:${t.position}:${t.plannedOn}`).join("|");
+                          return (
+                            <TopicOutline
+                              key={signature}
+                              subjectId={s.id}
+                              subjectName={s.name}
+                              topics={own}
+                              progress={topicProgress}
+                            />
+                          );
+                        })()}
                       </div>
                     )}
                     <div className="mt-4 flex gap-1 border-t border-line pt-3">

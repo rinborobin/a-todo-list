@@ -48,6 +48,10 @@ export interface StudyNextAiContext {
       lastRating: "STRUGGLED" | "OK" | "GOT_IT" | null;
       nextReviewOn: string | null;
       dueForReview: boolean;
+      /** Listed (outline or suggestion) but never studied: something to learn next. */
+      isNew?: boolean;
+      /** YYYY-MM-DD the class covers it, from the outline. */
+      inClassOn?: string | null;
     }[];
     openTasks: {
       id: string;

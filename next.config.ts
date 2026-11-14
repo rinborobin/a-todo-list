@@ -27,6 +27,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Course outline photos and PDFs go through a Server Action; Vercel caps bodies at 4.5 MB.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   allowedDevOrigins: devNetworkHost ? [devNetworkHost] : [],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

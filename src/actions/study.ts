@@ -1018,7 +1018,8 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
           nextReviewOn: memory?.nextReviewOn ?? null,
           topics: activeTopics
             .filter((t) => t.subjectId === s.id && !isProject)
-            .slice(0, 15)
+            .sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity))
+            .slice(0, 25)
             .map((t) => {
               const topicSessions = subjectSessions.filter((x) => x.topicId === t.id);
               const topicMemory = replayMemory(topicSessions, { timezone, examDate });
@@ -1033,6 +1034,8 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
                 lastRating: topicMemory?.lastRating ?? null,
                 nextReviewOn: topicMemory?.nextReviewOn ?? null,
                 dueForReview: topicMemory ? reviewStatus(topicMemory, today).due : false,
+                isNew: topicSessions.length === 0,
+                inClassOn: t.plannedOn,
               };
             }),
           openTasks: context.openTasks

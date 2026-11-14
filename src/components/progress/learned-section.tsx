@@ -97,6 +97,19 @@ export function LearnedSection({ learned }: { learned: Learned }) {
                 </dd>
               </div>
             )}
+            {learned.nextTopics.length > 0 && (
+              <div className="flex gap-4 py-2.5">
+                <dt className="w-36 shrink-0 text-muted">Next to learn</dt>
+                <dd>
+                  {learned.nextTopics.map((row, i) => (
+                    <span key={row.subjectName}>
+                      {i > 0 && <span className="text-faint"> · </span>}
+                      {row.subjectName}: {row.topicName}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
             {learned.practice.length > 0 && (
               <div className="flex gap-4 py-2.5">
                 <dt className="w-36 shrink-0 text-muted">Practice</dt>
@@ -135,6 +148,7 @@ export function LearnedSection({ learned }: { learned: Learned }) {
             {learned.usualHours.length === 0 &&
               learned.typicalBySubject.length === 0 &&
               learned.practice.length === 0 &&
+              learned.nextTopics.length === 0 &&
               learned.projects.length === 0 &&
               learned.estimateRatio === null && (
                 <div className="py-2.5 text-sm text-muted">

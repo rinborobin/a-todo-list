@@ -35,6 +35,7 @@ export function SuggestionLine({ suggestion }: { suggestion: StudyNextSuggestion
     <p className="mt-1 text-[15px]">
       <span className="font-semibold">{suggestion.subjectName}</span>
       {focus && <span className="font-semibold"> · {focus}</span>}
+      {suggestion.topicName && suggestion.topicIsNew && <span className="text-accent"> new</span>}
       {!focus && suggestion.taskTitle && <span className="text-ink-soft"> · {suggestion.taskTitle}</span>}
       {!focus && suggestion.taskTitle && suggestion.milestoneName && (
         <span className="text-muted"> ({suggestion.milestoneName})</span>

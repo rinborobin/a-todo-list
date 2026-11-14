@@ -467,3 +467,43 @@ describe("rankStudyNext v3: kinds", () => {
     });
   });
 });
+
+describe("rankStudyNext v3: finished tasks", () => {
+  const site: SubjectLike = { id: "site", name: "Portfolio site", archivedAt: null, kind: "PROJECT" };
+
+  it("counts a finished project task as touching the project, not as study time", () => {
+    const ranked = rankStudyNext({
+      now,
+      timezone: "UTC",
+      subjects: [site],
+      openTasks: [],
+      sessions: [session({ subjectId: "site", minutes: 60, startedAt: new Date(now.getTime() - 10 * D) })],
+      finishedTasks: [{ subjectId: "site", finishedAt: new Date(now.getTime() - D) }],
+    });
+    assert.doesNotMatch(ranked[0].reason, /not touched|not started/);
+  });
+
+  it("a project with only a finished task is not 'not started'", () => {
+    const ranked = rankStudyNext({
+      now,
+      timezone: "UTC",
+      subjects: [site],
+      openTasks: [],
+      sessions: [],
+      finishedTasks: [{ subjectId: "site", finishedAt: new Date(now.getTime() - 2 * D) }],
+    });
+    assert.doesNotMatch(ranked[0].reason, /not started/);
+  });
+
+  it("a finished class task does not count as studying the class", () => {
+    const withTask = rankStudyNext({
+      now,
+      timezone: "UTC",
+      subjects: [{ id: "calc", name: "Calculus", archivedAt: null, weeklyGoalMinutes: 240 }],
+      openTasks: [],
+      sessions: [],
+      finishedTasks: [{ subjectId: "calc", finishedAt: new Date(now.getTime() - D) }],
+    });
+    assert.match(withTask[0].reason, /not studied yet|0m of 4h/);
+  });
+});

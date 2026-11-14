@@ -45,6 +45,15 @@ export function isCoachTask(title: string) {
   return title.startsWith("Review: ") || title.startsWith("Study: ");
 }
 
+/**
+ * Whether ticking a planned block of this task counts as study time. Only the
+ * study blocks made by "Add to my plan" do; a to-do such as a submission or a
+ * project deadline just gets marked done.
+ */
+export function countsAsStudy(taskTitle: string | null | undefined): boolean {
+  return taskTitle ? isCoachTask(taskTitle) : false;
+}
+
 function capitalize(text: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

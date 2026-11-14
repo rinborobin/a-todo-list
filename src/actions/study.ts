@@ -847,6 +847,8 @@ export interface StudyContext {
   milestones: Milestone[];
   /** Status of every task that belongs to a milestone, for progress counts. */
   milestoneTasks: { milestoneId: string | null; status: Task["status"] }[];
+  /** Tasks finished in the last 60 days: they keep a project's momentum, never count as study time. */
+  finishedTasks: { subjectId: string | null; finishedAt: Date }[];
 }
 
 /** Everything the Today "Next up" line and the Progress screen need. */
@@ -856,7 +858,7 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
   // A year of history: the memory model replays it to know what is due.
   const since = new Date(Date.now() - 365 * 86_400_000);
 
-  const [timezone, subjects, sessions, running, openTasks, topics, milestones, milestoneTasks] = await Promise.all([
+  const [timezone, subjects, sessions, running, openTasks, topics, milestones, milestoneTasks, finishedRows] = await Promise.all([
     userTimezone(userId),
     db.query.subject.findMany({ where: eq(subject.userId, userId), orderBy: [asc(subject.name)] }),
     db.query.studySession.findMany({
@@ -878,6 +880,15 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
     db.query.task.findMany({
       where: and(eq(task.userId, userId), isNotNull(task.milestoneId)),
       columns: { milestoneId: true, status: true },
+    }),
+    db.query.task.findMany({
+      where: and(
+        eq(task.userId, userId),
+        eq(task.status, "COMPLETED"),
+        isNotNull(task.subjectId),
+        gte(task.updatedAt, new Date(Date.now() - 60 * 86_400_000))
+      ),
+      columns: { subjectId: true, updatedAt: true },
     }),
   ]);
 
@@ -911,6 +922,8 @@ export async function getStudyContextQuery(): Promise<StudyContext> {
     finishedTaskEstimates,
     milestones,
     milestoneTasks,
+    // Finishing time is approximated by the last update of a completed task.
+    finishedTasks: finishedRows.map((t) => ({ subjectId: t.subjectId, finishedAt: t.updatedAt })),
   };
 }
 
@@ -941,6 +954,7 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
       subjects: active,
       topics: activeTopics,
       milestones: context.milestones,
+      finishedTasks: context.finishedTasks,
       openTasks: context.openTasks,
       sessions: context.sessions,
       now,

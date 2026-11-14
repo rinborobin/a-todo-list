@@ -105,3 +105,18 @@ describe("buildLearned: kinds", () => {
     assert.ok(learned.reviewQueue.some((r) => r.subjectName === "Japanese"));
   });
 });
+
+describe("buildLearned: finished tasks", () => {
+  it("uses a finished project task for last touched", () => {
+    const learned = buildLearned({
+      subjects: [{ id: "site", name: "Portfolio site", archivedAt: null, kind: "PROJECT" as const }],
+      topics: [],
+      sessions: [],
+      finishedTasks: [{ subjectId: "site", finishedAt: ago(2) }],
+      finishedTaskEstimates: [],
+      timezone: "UTC",
+      now,
+    });
+    assert.deepEqual(learned.projects, [{ subjectName: "Portfolio site", idleDays: 2 }]);
+  });
+});

@@ -2,7 +2,7 @@ import type { StudyRating } from "@/db/schema";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { estimateRatio, typicalMinutes, usualHours } from "./habits";
 import { replayMemory, reviewStatus } from "./memory";
-import type { SubjectLike, TopicLike } from "./next";
+import { lastTouched, type FinishedTaskLike, type SubjectLike, type TopicLike } from "./next";
 import type { SessionLike } from "./stats";
 import { describeStreak, practiceStreak } from "./streak";
 
@@ -41,10 +41,13 @@ export function buildLearned(input: {
   topics: TopicLike[];
   sessions: (SessionLike & { source: NonNullable<SessionLike["source"]> })[];
   finishedTaskEstimates: { estimatedMinutes: number; actualMinutes: number }[];
+  /** Recently finished tasks, for when a project was last touched. */
+  finishedTasks?: FinishedTaskLike[];
   timezone: string;
   now: Date;
 }): Learned {
   const { subjects, topics, sessions, finishedTaskEstimates, timezone, now } = input;
+  const finishedTasks = input.finishedTasks ?? [];
   const today = toLocalDateKey(now, timezone);
   const active = subjects.filter((s) => !s.archivedAt);
   const queue: ReviewItem[] = [];
@@ -114,9 +117,10 @@ export function buildLearned(input: {
     projects: active
       .filter((subject) => subject.kind === "PROJECT")
       .map((subject) => {
-        const last = sessions
+        const lastSession = sessions
           .filter((s) => s.subjectId === subject.id)
           .reduce<Date | null>((latest, s) => (!latest || s.startedAt > latest ? s.startedAt : latest), null);
+        const last = lastTouched(subject.id, lastSession, finishedTasks);
         const idleDays = last
           ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${toLocalDateKey(last, timezone)}T00:00:00Z`)) / 86_400_000)
           : null;

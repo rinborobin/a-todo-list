@@ -1,7 +1,7 @@
 import { getStudyContextQuery } from "@/actions/study";
 import { ProgressView } from "@/components/progress/progress-view";
 import type { SubjectMeterRow } from "@/components/progress/subject-meters";
-import { rankStudyNext } from "@/lib/study/next";
+import { lastTouched, rankStudyNext } from "@/lib/study/next";
 import { dailyTotals, summarizeStudy } from "@/lib/study/stats";
 import { buildLearned } from "@/lib/study/learned";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
@@ -63,7 +63,9 @@ export default async function ProgressPage() {
       name: s.name,
       kind: s.kind,
       minutes7d: stat?.minutes7d ?? 0,
-      daysSince: daysSince(stat?.lastStudiedAt),
+      daysSince: daysSince(
+        s.kind === "PROJECT" ? lastTouched(s.id, stat?.lastStudiedAt, study.finishedTasks) : stat?.lastStudiedAt
+      ),
       latestRating: stat?.latestRating ?? null,
       detail: detailFor(s),
     };
@@ -88,6 +90,7 @@ export default async function ProgressPage() {
       subjects: active,
       topics: study.topics,
       milestones: study.milestones,
+      finishedTasks: study.finishedTasks,
       openTasks: study.openTasks,
       sessions: study.sessions,
       now,
@@ -123,6 +126,7 @@ export default async function ProgressPage() {
         topics: study.topics,
         sessions: study.sessions,
         finishedTaskEstimates: study.finishedTaskEstimates,
+        finishedTasks: study.finishedTasks,
         timezone,
         now,
       })}

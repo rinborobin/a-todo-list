@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { currentMilestone, milestoneProgress, nextProjectTask, resourceProgress } from "./progress";
+import { countsAsStudy, currentMilestone, milestoneProgress, nextProjectTask, resourceProgress } from "./progress";
 
 describe("resourceProgress", () => {
   it("names the next unit with the total", () => {
@@ -95,5 +95,15 @@ describe("nextProjectTask", () => {
       { ...t("elsewhere", "mvp"), subjectId: "app" },
     ]);
     assert.equal(next, null);
+  });
+});
+
+describe("countsAsStudy", () => {
+  it("counts only study blocks made by Add to my plan", () => {
+    assert.equal(countsAsStudy("Review: Calculus · Limits"), true);
+    assert.equal(countsAsStudy("Study: Japanese · Lesson 19"), true);
+    assert.equal(countsAsStudy("Submit lab report"), false);
+    assert.equal(countsAsStudy("Portfolio deadline"), false);
+    assert.equal(countsAsStudy(null), false);
   });
 });

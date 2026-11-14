@@ -61,8 +61,29 @@ export interface StudyNextSuggestion {
   score: number;
 }
 
+/** A task finished recently; for a side project it counts as touching it. */
+export interface FinishedTaskLike {
+  subjectId: string | null;
+  finishedAt: Date;
+}
+
+/** The latest of a project's last session and its last finished task. */
+export function lastTouched(
+  subjectId: string,
+  lastSession: Date | null | undefined,
+  finishedTasks: FinishedTaskLike[]
+): Date | null {
+  let latest = lastSession ?? null;
+  for (const t of finishedTasks) {
+    if (t.subjectId === subjectId && (!latest || t.finishedAt > latest)) latest = t.finishedAt;
+  }
+  return latest;
+}
+
 interface RankInput {
   subjects: SubjectLike[];
+  /** Recently finished tasks: they keep a project's momentum, never count as study time. */
+  finishedTasks?: FinishedTaskLike[];
   topics?: TopicLike[];
   milestones?: MilestoneLike[];
   openTasks: TaskLike[];
@@ -118,6 +139,7 @@ export function rankStudyNext({
   subjects,
   topics = [],
   milestones = [],
+  finishedTasks = [],
   openTasks,
   sessions,
   now,
@@ -188,7 +210,7 @@ export function rankStudyNext({
         milestoneName = next?.milestone?.name ?? null;
 
         // Momentum: the longer it sits untouched, the more it needs a push.
-        const last = stat?.lastStudiedAt ?? null;
+        const last = lastTouched(subject.id, stat?.lastStudiedAt, finishedTasks);
         if (!last) {
           score += 20;
           say(10, "not started yet");

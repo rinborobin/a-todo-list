@@ -20,6 +20,7 @@ export default async function TodayPage() {
       subjects: activeSubjects,
       topics: study.topics,
       milestones: study.milestones,
+      finishedTasks: study.finishedTasks,
       openTasks: study.openTasks,
       sessions: study.sessions,
       now,

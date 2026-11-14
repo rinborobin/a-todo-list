@@ -8,6 +8,7 @@ import { dailyPlan, scheduleItem, studySession, task, availability, user } from 
 import { requireAuth } from "@/lib/session";
 import { safeErrorMessage } from "@/lib/error";
 import { ownSubjectId, ownTaskMilestoneId } from "@/lib/study/ownership";
+import { countsAsStudy } from "@/lib/study/progress";
 import {
   generatePlanSchema,
   updateScheduleItemStatusSchema,
@@ -667,16 +668,18 @@ export async function updateScheduleItemStatusAction(
         }
       }
 
-      // Study log: a finished block counts as studied time, unless a timer
-      // already covered the same task at that time.
+      // Study log: a finished study block ("Add to my plan") counts as studied
+      // time, unless a timer already covered the same task at that time. Other
+      // tasks (submissions, project deadlines) are to-dos: finishing one is not
+      // learning progress, so nothing is logged.
       if (validated.status === "COMPLETED") {
         const linkedTask = item.taskId
           ? await tx.query.task.findFirst({
               where: and(eq(task.id, item.taskId), eq(task.userId, userId)),
-              columns: { subjectId: true },
+              columns: { subjectId: true, title: true },
             })
           : null;
-        const overlappingTimer = item.taskId
+        const overlappingTimer = countsAsStudy(linkedTask?.title) && item.taskId
           ? await tx.query.studySession.findFirst({
               where: and(
                 eq(studySession.userId, userId),
@@ -689,7 +692,7 @@ export async function updateScheduleItemStatusAction(
             })
           : null;
 
-        if (!overlappingTimer) {
+        if (countsAsStudy(linkedTask?.title) && !overlappingTimer) {
           const minutes = Math.round((item.endTime.getTime() - item.startTime.getTime()) / 60_000);
           await tx
             .insert(studySession)

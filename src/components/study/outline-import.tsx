@@ -71,11 +71,20 @@ export function OutlineImport({
       form.set("subjectId", subjectId);
       if (file) {
         const blob = await shrinkImage(file);
+        // The server takes at most 4 MB per request; say so here instead of failing there.
+        if (blob.size > 3.9 * 1024 * 1024) {
+          setError("That file is over 4 MB. Try a smaller photo, or paste the text.");
+          return;
+        }
         form.set("file", blob, file.name);
       } else {
         form.set("text", text);
       }
-      const result = await readOutlineAction(form);
+      const result = await readOutlineAction(form).catch(() => null);
+      if (!result) {
+        setError("Could not send that file. Try a smaller one, or paste the text.");
+        return;
+      }
       if (!result.success) {
         setError(result.error);
         return;

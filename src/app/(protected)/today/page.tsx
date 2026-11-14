@@ -1,7 +1,8 @@
 import { getTodayQuery } from "@/actions/planner";
 import { getStudyContextQuery } from "@/actions/study";
 import { TodayView } from "@/components/today/today-view";
-import { rankStudyNext } from "@/lib/study/next";
+import { nextTopicsFirst, rankStudyNext } from "@/lib/study/next";
+import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { toRailSubjects } from "@/components/planner/rail-subjects";
 
 export const metadata = {
@@ -45,9 +46,11 @@ export default async function TodayPage() {
         running,
         subjects: activeSubjects.map(({ id, name }) => ({ id, name })),
         railSubjects: toRailSubjects(study.subjects),
-        topics: study.topics
-          .filter((t) => !t.archivedAt)
-          .map(({ id, name, subjectId }) => ({ id, name, subjectId })),
+        topics: nextTopicsFirst(
+          study.topics.filter((t) => !t.archivedAt),
+          study.sessions,
+          toLocalDateKey(now, study.timezone)
+        ).map(({ id, name, subjectId }) => ({ id, name, subjectId })),
       }}
     />
   );

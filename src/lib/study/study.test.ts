@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dailyTotals, summarizeStudy, type SessionLike } from "./stats";
-import { rankStudyNext, type SubjectLike, type TaskLike } from "./next";
+import { nextTopicsFirst, rankStudyNext, type SubjectLike, type TaskLike } from "./next";
 
 // Thursday 12 November 2026, 10:00 UTC
 const now = new Date("2026-11-12T10:00:00Z");
@@ -611,5 +611,20 @@ describe("rankStudyNext v4: learn next", () => {
       sessions: [session({ subjectId: "web", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
     });
     assert.equal(ranked[0].topicId, null);
+  });
+});
+
+describe("nextTopicsFirst", () => {
+  it("puts each subject's next topic to learn at the front of a picker", () => {
+    const ordered = nextTopicsFirst(
+      [
+        { id: "flex", name: "Flexbox", subjectId: "web", position: 0 },
+        { id: "joins", name: "Joins", subjectId: "db", position: null },
+        { id: "grid", name: "CSS Grid", subjectId: "web", position: 1 },
+      ],
+      [session({ subjectId: "web", topicId: "flex", minutes: 30, startedAt: new Date(now.getTime() - D) })],
+      "2026-11-12"
+    );
+    assert.deepEqual(ordered.map((t) => t.id), ["joins", "grid", "flex"]);
   });
 });

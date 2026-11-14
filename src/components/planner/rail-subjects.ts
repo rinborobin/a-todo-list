@@ -6,6 +6,7 @@ import type { RailSubject } from "./day-rail";
 export function toRailSubjects(subjects: Subject[]): RailSubject[] {
   return subjects.map((s) => ({
     id: s.id,
+    name: s.name,
     kind: s.kind,
     resourceNext: s.kind === "SELF_LEARNING" ? (resourceProgress(s)?.nextShort ?? null) : null,
   }));

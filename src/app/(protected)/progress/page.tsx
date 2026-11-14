@@ -1,7 +1,7 @@
 import { getStudyContextQuery } from "@/actions/study";
 import { ProgressView } from "@/components/progress/progress-view";
 import type { SubjectMeterRow } from "@/components/progress/subject-meters";
-import { lastTouched, rankStudyNext } from "@/lib/study/next";
+import { lastTouched, nextTopicsFirst, rankStudyNext } from "@/lib/study/next";
 import { dailyTotals, summarizeStudy } from "@/lib/study/stats";
 import { buildLearned } from "@/lib/study/learned";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
@@ -120,7 +120,11 @@ export default async function ProgressPage() {
       projectIds={study.subjects.filter((s) => s.kind === "PROJECT").map((s) => s.id)}
       taskTitles={study.taskTitles}
       activeSubjects={active.map(({ id, name }) => ({ id, name }))}
-      topics={study.topics.filter((t) => !t.archivedAt).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
+      topics={nextTopicsFirst(
+        study.topics.filter((t) => !t.archivedAt),
+        study.sessions,
+        today
+      ).map(({ id, name, subjectId }) => ({ id, name, subjectId }))}
       learned={buildLearned({
         subjects: active,
         topics: study.topics,

@@ -407,6 +407,24 @@ export function newTopicsInOrder<T extends TopicLike>(topics: T[], studied: Set<
 }
 
 /**
+ * Orders topics for a picker: each subject's next topic to learn first (the
+ * likely answer to "what did this session cover?"), then the rest as given.
+ */
+export function nextTopicsFirst<T extends TopicLike>(topics: T[], sessions: SessionLike[], today: string): T[] {
+  const studied = new Set(sessions.map((s) => s.topicId));
+  const firsts = new Set<string>();
+  for (const subjectId of new Set(topics.map((t) => t.subjectId))) {
+    const next = newTopicsInOrder(
+      topics.filter((t) => t.subjectId === subjectId),
+      studied,
+      today
+    )[0];
+    if (next) firsts.add(next.id);
+  }
+  return [...topics.filter((t) => firsts.has(t.id)), ...topics.filter((t) => !firsts.has(t.id))];
+}
+
+/**
  * Inside a class or self-learning subject: a topic due for review comes first
  * (most overdue), then the task with the nearest deadline, then the next unit
  * of the book or course, then the topic coming up soonest, then any open task.

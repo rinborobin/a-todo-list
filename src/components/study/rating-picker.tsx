@@ -14,10 +14,12 @@ interface RatingPickerProps {
   /** Show "How did it go?" and a Skip button; used right after a session ends. */
   prompt?: boolean;
   onDone?: () => void;
+  /** Called once the rating is saved. */
+  onRated?: (rating: StudyRating | null) => void;
 }
 
 /** One tap to say how a study session went. Tapping the chosen value again clears it. */
-export function RatingPicker({ sessionId, value = null, prompt = false, onDone }: RatingPickerProps) {
+export function RatingPicker({ sessionId, value = null, prompt = false, onDone, onRated }: RatingPickerProps) {
   const [rating, setRating] = useState<StudyRating | null>(value);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -34,6 +36,7 @@ export function RatingPicker({ sessionId, value = null, prompt = false, onDone }
         setError(result.error);
         return;
       }
+      onRated?.(newValue);
       if (prompt) onDone?.();
     });
   };

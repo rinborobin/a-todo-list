@@ -8,6 +8,8 @@ import { formatDuration } from "@/lib/format";
 import { RatingPicker } from "@/components/study/rating-picker";
 import { SessionTopicPicker } from "@/components/study/topic-picker";
 import { ResourceStep, TaskDoneToggle } from "@/components/study/follow-ups";
+import { NextTopicPrompt } from "@/components/study/next-topic-prompt";
+import type { StudyRating } from "@/db/schema";
 import type { SubjectKind } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/ui/icons";
@@ -421,6 +423,7 @@ function Finished({
   onDone: () => void;
 }) {
   const [shown, setShown] = useState(0);
+  const [rating, setRating] = useState<StudyRating | null>(null);
 
   // Count the logged minutes up once; instantly when motion is reduced.
   useEffect(() => {
@@ -461,7 +464,17 @@ function Finished({
       ) : (
         <div className="rise mt-8 flex flex-col items-center gap-2" style={{ animationDelay: "0.45s" }}>
           <p className="text-sm text-muted">How did it go?</p>
-          <RatingPicker sessionId={sessionId} />
+          <RatingPicker sessionId={sessionId} onRated={setRating} />
+          {rating === "STRUGGLED" && (
+            <p className="rise text-[13px] text-muted" role="status">
+              It will come back for review tomorrow.
+            </p>
+          )}
+        </div>
+      )}
+      {rating === "GOT_IT" && kind !== "PROJECT" && subjectId && subject && (
+        <div className="mt-6 w-full">
+          <NextTopicPrompt subjectId={subjectId} subjectName={subject} afterTopicId={topicId} />
         </div>
       )}
       {kind === "SELF_LEARNING" && subjectId && resourceNext && (

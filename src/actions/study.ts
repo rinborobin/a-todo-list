@@ -39,7 +39,7 @@ import {
 import type { z } from "zod";
 import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { quickAddTaskAction, replanWeekAction } from "@/actions/planner";
-import { rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
+import { nextTopicsFirst, rankStudyNext, type StudyNextSuggestion } from "@/lib/study/next";
 import { summarizeStudy } from "@/lib/study/stats";
 import { replayMemory, reviewStatus } from "@/lib/study/memory";
 import { estimateRatio, typicalMinutes, usualHours } from "@/lib/study/habits";
@@ -433,11 +433,29 @@ export async function getFocusQuery(): Promise<FocusData | null> {
       ? db.query.topic.findMany({
           where: and(eq(topic.subjectId, running.subjectId), eq(topic.userId, userId), isNull(topic.archivedAt)),
           orderBy: [desc(topic.updatedAt)],
-          columns: { id: true, name: true },
-          limit: 12,
+          columns: { id: true, name: true, subjectId: true, position: true, plannedOn: true },
+          limit: 60,
         })
       : [],
   ]);
+  // The next topic to learn first: most likely what this session covers.
+  const subjectSessions = running.subjectId
+    ? await db.query.studySession.findMany({
+        where: and(
+          eq(studySession.userId, userId),
+          eq(studySession.subjectId, running.subjectId),
+          isNotNull(studySession.topicId)
+        ),
+        columns: { subjectId: true, topicId: true, startedAt: true, minutes: true, rating: true },
+      })
+    : [];
+  const pickerTopics = nextTopicsFirst(
+    subjectTopics,
+    subjectSessions,
+    toLocalDateKey(new Date(), await userTimezone(userId))
+  )
+    .slice(0, 12)
+    .map(({ id, name }) => ({ id, name }));
 
   return {
     sessionId: running.id,
@@ -451,7 +469,7 @@ export async function getFocusQuery(): Promise<FocusData | null> {
     resourceNext:
       subjectRow?.kind === "SELF_LEARNING" ? (resourceProgress(subjectRow)?.nextShort ?? null) : null,
     topicId: running.topicId,
-    topics: subjectTopics,
+    topics: pickerTopics,
   };
 }
 

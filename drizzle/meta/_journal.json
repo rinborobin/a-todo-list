@@ -71,6 +71,13 @@
       "when": 1794546004529,
       "tag": "0009_uneven_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794625283376,
+      "tag": "0010_gigantic_northstar",
+      "breakpoints": true
     }
   ]
 }

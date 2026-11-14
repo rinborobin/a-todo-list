@@ -159,6 +159,9 @@ export const subject = pgTable(
   ]
 );
 
+/** Where a topic came from: named after a session, read from a course outline, or suggested by AI. */
+export const topicOriginEnum = pgEnum("topic_origin", ["LOGGED", "OUTLINE", "AI"]);
+
 /** A part of a subject ("Limits" in Calculus); has its own review schedule. */
 export const topic = pgTable(
   "topic",
@@ -173,6 +176,13 @@ export const topic = pgTable(
       .notNull()
       .references(() => subject.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    // Order in the course outline or topic list; null for topics only named after a session.
+    position: integer("position"),
+    origin: topicOriginEnum("origin").notNull().default("LOGGED"),
+    // When the class covers it, from the course outline.
+    plannedOn: date("planned_on"),
+    // Why the AI suggested it as the next topic.
+    reason: text("reason"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -350,6 +360,7 @@ export type StudySession = typeof studySession.$inferSelect;
 export type StudySource = (typeof studySourceEnum.enumValues)[number];
 export type StudyRating = (typeof studyRatingEnum.enumValues)[number];
 export type Topic = typeof topic.$inferSelect;
+export type TopicOrigin = (typeof topicOriginEnum.enumValues)[number];
 export type SubjectConfidence = (typeof subjectConfidenceEnum.enumValues)[number];
 export type SubjectKind = (typeof subjectKindEnum.enumValues)[number];
 export type Milestone = typeof milestone.$inferSelect;

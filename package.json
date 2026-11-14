@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/study/focus-time.test.ts src/lib/study/memory.test.ts src/lib/study/habits.test.ts src/lib/study/learned.test.ts src/lib/study/streak.test.ts src/lib/study/progress.test.ts src/lib/study/picker.test.ts src/lib/ai/study-next.test.ts src/lib/ai/topics.test.ts src/lib/allowed-emails.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts",
+    "test": "tsx --test src/lib/scheduling/engine.test.ts src/lib/scheduling/plan-utils.test.ts src/lib/quick-add/parse.test.ts src/lib/study/study.test.ts src/lib/study/focus-time.test.ts src/lib/study/memory.test.ts src/lib/study/habits.test.ts src/lib/study/learned.test.ts src/lib/study/streak.test.ts src/lib/study/progress.test.ts src/lib/study/picker.test.ts src/lib/ai/study-next.test.ts src/lib/ai/topics.test.ts src/lib/allowed-emails.test.ts src/lib/ai/suggest.test.ts src/lib/ai/propose-tasks.test.ts src/lib/reminders/due.test.ts src/lib/reminders/endpoint.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -22,6 +22,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
+    "web-push": "^3.6.7",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -29,6 +30,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.0",
     "eslint": "^9",

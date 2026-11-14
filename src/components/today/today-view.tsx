@@ -14,6 +14,7 @@ import { ChevronRightIcon } from "@/components/ui/icons";
 import { describeDue, formatDayHeading, formatDuration } from "@/lib/format";
 import { QuickAdd } from "./quick-add";
 import { ReplanButton } from "./replan-button";
+import { RemindersNudge } from "@/components/reminders/reminders-nudge";
 
 interface TodayViewProps {
   data: TodayData;
@@ -25,11 +26,13 @@ interface TodayViewProps {
     topics: { id: string; name: string; subjectId: string }[];
     railSubjects: RailSubject[];
   };
+  /** The server can send notifications, so it is worth offering them. */
+  remindersConfigured: boolean;
 }
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
 
-export function TodayView({ data, initialNow, study }: TodayViewProps) {
+export function TodayView({ data, initialNow, study, remindersConfigured }: TodayViewProps) {
   const now = useMinuteClock(initialNow);
   const { timezone, today, items, deadlines, unplanned, hasAvailability } = data;
   const [statuses, setStatuses] = useState<Record<string, string>>({});
@@ -67,6 +70,8 @@ export function TodayView({ data, initialNow, study }: TodayViewProps) {
           </p>
         )}
       </header>
+
+      {remindersConfigured && <RemindersNudge />}
 
       <div className="mt-6 grid gap-10 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:gap-y-10">
         {/* Phones: first, above the plan. Laptops: top of the side column. */}

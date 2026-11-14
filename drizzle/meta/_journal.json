@@ -78,6 +78,13 @@
       "when": 1794625283376,
       "tag": "0010_gigantic_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794640745236,
+      "tag": "0011_useful_electro",
+      "breakpoints": true
     }
   ]
 }

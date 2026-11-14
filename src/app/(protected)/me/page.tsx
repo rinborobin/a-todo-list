@@ -6,6 +6,8 @@ import { getMilestoneProgressQuery, listMilestonesQuery, listSubjectsQuery, list
 import { SubjectsManager } from "@/components/study/subjects-manager";
 import { getTopicProgressQuery } from "@/actions/outline";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
+import { getReminderStateQuery } from "@/actions/reminders";
+import { RemindersSection } from "@/components/reminders/reminders-section";
 
 export const metadata = {
   title: "Me",
@@ -13,7 +15,7 @@ export const metadata = {
 
 export default async function MePage() {
   const session = await requireAuth("/me");
-  const [blocks, timezone, subjects, topics, milestones, milestoneProgress, topicProgress] = await Promise.all([
+  const [blocks, timezone, subjects, topics, milestones, milestoneProgress, topicProgress, reminders] = await Promise.all([
     getUserAvailabilityQuery(),
     getUserTimezoneQuery(),
     listSubjectsQuery(),
@@ -21,6 +23,7 @@ export default async function MePage() {
     listMilestonesQuery(),
     getMilestoneProgressQuery(),
     getTopicProgressQuery(),
+    getReminderStateQuery(),
   ]);
 
   return (
@@ -53,6 +56,10 @@ export default async function MePage() {
           milestoneProgress={milestoneProgress}
           today={toLocalDateKey(new Date(), timezone)}
         />
+      </div>
+
+      <div className="mt-10">
+        <RemindersSection state={reminders} />
       </div>
 
       <section aria-labelledby="account-heading" className="mt-10">

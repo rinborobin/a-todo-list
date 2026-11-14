@@ -33,7 +33,11 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: devNetworkHost ? [devNetworkHost] : [],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The notification worker must never be served stale, or phones keep an old copy.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] },
+    ];
   },
   async redirects() {
     return [

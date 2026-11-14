@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { removePushSubscriptionAction } from "@/actions/reminders";
+import { unsubscribeDevice } from "@/components/reminders/push-client";
 
 export function SignOutButton() {
   const router = useRouter();
@@ -18,6 +20,9 @@ export function SignOutButton() {
           setIsSigningOut(true);
           setError(null);
           try {
+            // A signed-out phone must stop receiving this account's reminders.
+            const endpoint = await unsubscribeDevice();
+            if (endpoint) await removePushSubscriptionAction({ endpoint });
             await signOut();
             router.push("/login");
             router.refresh();

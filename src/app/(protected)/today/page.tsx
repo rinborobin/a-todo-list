@@ -5,6 +5,7 @@ import { nextTopicsFirst, rankStudyNext } from "@/lib/study/next";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { toRailSubjects } from "@/components/planner/rail-subjects";
 import { toPickerSubjects } from "@/lib/study/picker";
+import { remindersConfigured } from "@/lib/reminders/send";
 
 export const metadata = {
   title: "Today",
@@ -42,6 +43,7 @@ export default async function TodayPage() {
     <TodayView
       data={data}
       initialNow={now}
+      remindersConfigured={remindersConfigured()}
       study={{
         suggestion,
         running,

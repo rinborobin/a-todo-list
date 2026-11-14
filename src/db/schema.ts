@@ -334,6 +334,60 @@ export const studySession = pgTable(
   ]
 );
 
+// ---------------------------------------------------------------- reminders
+
+// One row per device that agreed to notifications. The endpoint is the push
+// service address the browser handed out; the keys encrypt what is sent to it.
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  },
+  (table) => [index("push_subscription_user_idx").on(table.userId)]
+);
+
+// Which reminders the person wants. No row means every reminder is on.
+export const reminderPref = pgTable("reminder_pref", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  morningEnabled: boolean("morning_enabled").notNull().default(true),
+  morningTime: time("morning_time").notNull().default("07:30"),
+  deadlineEnabled: boolean("deadline_enabled").notNull().default(true),
+  overdueEnabled: boolean("overdue_enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const reminderKindEnum = pgEnum("reminder_kind", ["MORNING", "DUE_DAY", "DUE_SOON", "OVERDUE"]);
+
+// What has been sent, so nothing is sent twice. The key carries the deadline,
+// so moving a deadline arms its reminders again.
+export const reminderLog = pgTable(
+  "reminder_log",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: reminderKindEnum("kind").notNull(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("reminder_log_sent_idx").on(table.sentAt)]
+);
+
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
@@ -364,3 +418,6 @@ export type TopicOrigin = (typeof topicOriginEnum.enumValues)[number];
 export type SubjectConfidence = (typeof subjectConfidenceEnum.enumValues)[number];
 export type SubjectKind = (typeof subjectKindEnum.enumValues)[number];
 export type Milestone = typeof milestone.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscription.$inferSelect;
+export type ReminderPref = typeof reminderPref.$inferSelect;
+export type ReminderKind = (typeof reminderKindEnum.enumValues)[number];

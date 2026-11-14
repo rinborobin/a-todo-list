@@ -12,14 +12,13 @@ export const AI_LIMITS = {
 } as const;
 
 /**
- * Counts one AI call for the user and says whether it is within the hourly
- * limit. Uses the same table as the login rate limit, with its own keys, so the
- * count holds across serverless instances. The window starts at the first call
- * and resets an hour later.
+ * Counts one use of `key` and says whether it is within `limit` for the hour.
+ * Uses the same table as the login rate limit, with its own keys, so the count
+ * holds across serverless instances. The window starts at the first use and
+ * resets an hour later.
  */
-export async function takeAiQuota(userId: string, feature: keyof typeof AI_LIMITS): Promise<boolean> {
+export async function takeHourlyQuota(key: string, limit: number): Promise<boolean> {
   const now = Date.now();
-  const key = `ai:${feature}:${userId}`;
   const [row] = await db
     .insert(rateLimit)
     .values({ key, count: 1, lastRequest: now })
@@ -31,5 +30,10 @@ export async function takeAiQuota(userId: string, feature: keyof typeof AI_LIMIT
       },
     })
     .returning({ count: rateLimit.count });
-  return (row?.count ?? 0) <= AI_LIMITS[feature];
+  return (row?.count ?? 0) <= limit;
+}
+
+/** Counts one AI call for the user and says whether it is within the hourly limit. */
+export async function takeAiQuota(userId: string, feature: keyof typeof AI_LIMITS): Promise<boolean> {
+  return takeHourlyQuota(`ai:${feature}:${userId}`, AI_LIMITS[feature]);
 }

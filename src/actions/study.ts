@@ -341,7 +341,11 @@ export async function startStudyTimerAction(input: unknown): Promise<ActionResul
     if (!parsed.success) return { success: false, error: "Invalid timer request" };
 
     const ownedTask = await ownTask(userId, parsed.data.taskId);
-    const subjectId = (await ownSubjectId(userId, parsed.data.subjectId)) ?? ownedTask?.subjectId ?? null;
+    const chosenSubject = await ownSubjectId(userId, parsed.data.subjectId);
+    if (ownedTask && chosenSubject && ownedTask.subjectId !== chosenSubject) {
+      throw new UserFacingError("That task belongs to another subject");
+    }
+    const subjectId = chosenSubject ?? ownedTask?.subjectId ?? null;
     let topicId: string | null = null;
     if (parsed.data.topicId) {
       const owned = await ownTopic(userId, parsed.data.topicId);

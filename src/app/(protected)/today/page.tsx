@@ -4,6 +4,7 @@ import { TodayView } from "@/components/today/today-view";
 import { nextTopicsFirst, rankStudyNext } from "@/lib/study/next";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { toRailSubjects } from "@/components/planner/rail-subjects";
+import { toPickerSubjects } from "@/lib/study/picker";
 
 export const metadata = {
   title: "Today",
@@ -44,7 +45,14 @@ export default async function TodayPage() {
       study={{
         suggestion,
         running,
-        subjects: activeSubjects.map(({ id, name }) => ({ id, name })),
+        subjects: toPickerSubjects({
+          subjects: activeSubjects,
+          topics: study.topics,
+          milestones: study.milestones,
+          openTasks: study.openTasks,
+          sessions: study.sessions,
+          today: toLocalDateKey(now, study.timezone),
+        }),
         railSubjects: toRailSubjects(study.subjects),
         topics: nextTopicsFirst(
           study.topics.filter((t) => !t.archivedAt),

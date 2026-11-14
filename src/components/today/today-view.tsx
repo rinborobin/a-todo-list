@@ -7,6 +7,7 @@ import type { Task } from "@/db/schema";
 import type { StudyNextSuggestion } from "@/lib/study/next";
 import { DayRail, type RailSubject } from "@/components/planner/day-rail";
 import { StudyNow, type RunningTimer } from "@/components/study/study-now";
+import type { PickerSubject } from "@/lib/study/picker";
 import { useMinuteClock } from "@/components/study/use-minute-clock";
 import { buttonClasses } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons";
@@ -20,7 +21,7 @@ interface TodayViewProps {
   study: {
     suggestion: StudyNextSuggestion | null;
     running: RunningTimer | null;
-    subjects: { id: string; name: string }[];
+    subjects: PickerSubject[];
     topics: { id: string; name: string; subjectId: string }[];
     railSubjects: RailSubject[];
   };

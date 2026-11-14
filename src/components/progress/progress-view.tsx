@@ -10,6 +10,7 @@ import { SOURCE_LABEL } from "@/lib/study/labels";
 import { formatClock, formatDayHeading, formatDuration } from "@/lib/format";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { StudyNow, type RunningTimer } from "@/components/study/study-now";
+import type { PickerSubject } from "@/lib/study/picker";
 import { RatingPicker } from "@/components/study/rating-picker";
 import { Button } from "@/components/ui/button";
 import { PlusIcon, TrashIcon } from "@/components/ui/icons";
@@ -35,6 +36,8 @@ interface ProgressViewProps {
   topics: { id: string; name: string; subjectId: string }[];
   learned: Learned;
   suggestion: StudyNextSuggestion | null;
+  /** Subjects with topics or tasks, for "Choose what to study". */
+  pickerSubjects: PickerSubject[];
   running: RunningTimer | null;
 }
 
@@ -174,7 +177,7 @@ export function ProgressView(props: ProgressViewProps) {
           <StudyNow
             suggestion={ai?.suggestion ?? props.suggestion}
             running={props.running}
-            subjects={props.activeSubjects}
+            subjects={props.pickerSubjects}
             initialNow={initialNow}
             timezone={timezone}
           />

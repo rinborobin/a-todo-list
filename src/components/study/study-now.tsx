@@ -9,6 +9,8 @@ import { defaultGoalMinutes } from "@/lib/study/focus-time";
 import { describeDue, formatDuration } from "@/lib/format";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { RatingPicker } from "./rating-picker";
+import { StudyPicker } from "./study-picker";
+import type { PickerSubject } from "@/lib/study/picker";
 import { useMinuteClock } from "./use-minute-clock";
 
 export interface RunningTimer {
@@ -21,7 +23,7 @@ export interface RunningTimer {
 interface StudyNowProps {
   suggestion: StudyNextSuggestion | null;
   running: RunningTimer | null;
-  subjects: { id: string; name: string }[];
+  subjects: PickerSubject[];
   initialNow: Date;
   timezone: string;
 }
@@ -60,6 +62,8 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
   // Result of "Add to my plan", shown under the buttons.
   const [planned, setPlanned] = useState<string | null>(null);
   const [isPlanning, startPlanning] = useTransition();
+  // "Choose what to study": the student picks by mood instead of the suggestion.
+  const [picking, setPicking] = useState(false);
 
   const addToPlan = (s: StudyNextSuggestion) => {
     setError(null);
@@ -235,24 +239,29 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
             </Button>
           </>
         )}
-        <label htmlFor="study-other" className="sr-only">
-          Work on something else
-        </label>
-        <select
-          id="study-other"
-          value=""
+        <Button
+          variant={suggestion ? "ghost" : "primary"}
+          size="sm"
           disabled={isPending}
-          onChange={(e) => e.target.value && start(e.target.value, null, defaultGoalMinutes(null), e.currentTarget)}
-          className="h-8 cursor-pointer rounded-lg bg-transparent px-1 text-[13px] text-muted hover:text-ink focus:outline-none"
+          onClick={() => setPicking(true)}
+          className={suggestion ? "text-muted" : ""}
         >
-          <option value="">{suggestion ? "or something else…" : "Choose…"}</option>
-          {subjects.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          {suggestion ? "Choose something else" : "Choose what to study"}
+        </Button>
       </div>
+      {picking && (
+        <StudyPicker
+          subjects={subjects}
+          open={picking}
+          starting={isPending}
+          onClose={() => setPicking(false)}
+          onStart={(choice, origin) => {
+            // Close the sheet so the flood and any error show on the page.
+            setPicking(false);
+            start(choice.subjectId, choice.taskId, choice.minutes, origin, choice.topicId);
+          }}
+        />
+      )}
       {planned && (
         <p className="rise mt-2 text-[13px] text-ink-soft" role="status">
           {planned}

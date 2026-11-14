@@ -8,6 +8,7 @@ import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
 import { currentMilestone, milestoneProgress, resourceProgress } from "@/lib/study/progress";
 import { describeStreak, practiceStreak } from "@/lib/study/streak";
 import type { Subject } from "@/db/schema";
+import { toPickerSubjects } from "@/lib/study/picker";
 
 export const metadata = {
   title: "Progress",
@@ -120,6 +121,14 @@ export default async function ProgressPage() {
       projectIds={study.subjects.filter((s) => s.kind === "PROJECT").map((s) => s.id)}
       taskTitles={study.taskTitles}
       activeSubjects={active.map(({ id, name }) => ({ id, name }))}
+      pickerSubjects={toPickerSubjects({
+        subjects: active,
+        topics: study.topics,
+        milestones: study.milestones,
+        openTasks: study.openTasks,
+        sessions: study.sessions,
+        today,
+      })}
       topics={nextTopicsFirst(
         study.topics.filter((t) => !t.archivedAt),
         study.sessions,

@@ -628,3 +628,17 @@ describe("nextTopicsFirst", () => {
     assert.deepEqual(ordered.map((t) => t.id), ["joins", "grid", "flex"]);
   });
 });
+
+describe("rankStudyNext: reasons", () => {
+  it("says a topic felt hard once, not twice", () => {
+    const ranked = rankStudyNext({
+      now,
+      timezone: "UTC",
+      subjects: [{ id: "bio", name: "Biology", archivedAt: null }],
+      topics: [{ id: "cells", name: "Cells", subjectId: "bio", archivedAt: null, position: 0 }],
+      openTasks: [],
+      sessions: [session({ subjectId: "bio", topicId: "cells", minutes: 30, startedAt: new Date(now.getTime() - 2 * D), rating: "STRUGGLED" })],
+    });
+    assert.equal(ranked[0].reason.match(/felt hard/g)?.length, 1, ranked[0].reason);
+  });
+});

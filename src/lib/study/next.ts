@@ -322,7 +322,8 @@ export function rankStudyNext({
         // How the last session felt (the memory model already reacts; this nudges).
         if (stat?.latestRating === "STRUGGLED") {
           score += 6;
-          say(6, "last session felt hard");
+          // The topic reason may already say it felt hard.
+          if (!focus.topicReason?.includes("felt hard")) say(6, "last session felt hard");
         } else if (stat?.latestRating === "GOT_IT") {
           score -= 5;
         }

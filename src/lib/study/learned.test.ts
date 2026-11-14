@@ -120,3 +120,20 @@ describe("buildLearned: finished tasks", () => {
     assert.deepEqual(learned.projects, [{ subjectName: "Portfolio site", idleDays: 2 }]);
   });
 });
+
+describe("buildLearned: next topics", () => {
+  it("names the next topic to learn per subject, skipping studied ones", () => {
+    const learned = buildLearned({
+      subjects: [{ id: "web", name: "Web Dev", archivedAt: null }],
+      topics: [
+        { id: "flex", name: "Flexbox", subjectId: "web", archivedAt: null, position: 0 },
+        { id: "grid", name: "CSS Grid", subjectId: "web", archivedAt: null, position: 1 },
+      ],
+      sessions: [{ subjectId: "web", topicId: "flex", startedAt: ago(1), minutes: 30, rating: "GOT_IT", source: "TIMER" }],
+      finishedTaskEstimates: [],
+      timezone: "UTC",
+      now,
+    });
+    assert.deepEqual(learned.nextTopics, [{ subjectName: "Web Dev", topicName: "CSS Grid" }]);
+  });
+});

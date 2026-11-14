@@ -1,6 +1,6 @@
-import type { SubjectConfidence, SubjectKind } from "@/db/schema";
+import type { SubjectConfidence, SubjectKind, TopicOrigin } from "@/db/schema";
 import { describeDue, formatDuration } from "@/lib/format";
-import { toLocalDateKey } from "@/lib/scheduling/timezone";
+import { addDaysToDateKey, toLocalDateKey } from "@/lib/scheduling/timezone";
 import { typicalMinutes } from "./habits";
 import { replayMemory, reviewStatus } from "./memory";
 import { currentMilestone, isCoachTask, nextProjectTask, resourceProgress, type MilestoneLike } from "./progress";
@@ -31,6 +31,11 @@ export interface TopicLike {
   name: string;
   subjectId: string;
   archivedAt?: Date | null;
+  /** Order in the course outline or topic list. */
+  position?: number | null;
+  origin?: TopicOrigin;
+  /** YYYY-MM-DD the class covers it, from the outline. */
+  plannedOn?: string | null;
 }
 
 export interface TaskLike {
@@ -48,6 +53,8 @@ export interface StudyNextSuggestion {
   kind: SubjectKind;
   topicId: string | null;
   topicName: string | null;
+  /** The topic has never been studied: learn it, rather than review it. */
+  topicIsNew: boolean;
   taskId: string | null;
   taskTitle: string | null;
   /** Project: the milestone the suggested task belongs to. */
@@ -98,6 +105,10 @@ const EXAM_HORIZON_DAYS = 21;
 const TARGET_HORIZON_DAYS = 30;
 const MILESTONE_HORIZON_DAYS = 21;
 const DEFAULT_MINUTES = 60;
+// A task takes the focus over learning only when it is this close (or overdue).
+const TASK_FOCUS_HOURS = 48;
+// "Covered in class" counts for a week after the outline date.
+const CLASS_RECENT_DAYS = 7;
 // Confidence from setup matters until there is real history for the subject.
 const CONFIDENCE_FADE_REVIEWS = 8;
 // "Classes first when urgent": an exam this week or a class task due within
@@ -199,6 +210,7 @@ export function rankStudyNext({
       if (kind === "CLASS" && classUrgent) score += CLASS_URGENT_BONUS;
 
       let topic: TopicLike | null = null;
+      let topicIsNew = false;
       let task: TaskLike | null = null;
       let milestoneName: string | null = null;
       let resourceNext: string | null = null;
@@ -249,14 +261,35 @@ export function rankStudyNext({
           topics,
           sessions: subjectSessions,
           tasks,
-          urgentTask,
+          focusTask:
+            urgentTask?.deadline && urgentTask.deadline.getTime() - now.getTime() <= TASK_FOCUS_HOURS * 3_600_000
+              ? urgentTask
+              : null,
           examDate: kind === "CLASS" ? (subject.examDate ?? null) : null,
           nextUnit: resource?.nextLabel ?? null,
           timezone,
           today,
         });
         topic = focus.topic;
+        topicIsNew = focus.newTopic !== null;
         task = focus.task;
+
+        // Learn next: a topic from the outline (or suggested) that was never studied.
+        if (focus.newTopic) {
+          score += 12;
+          const covered = focus.newTopic.plannedOn;
+          if (covered && covered <= today && covered >= addDaysToDateKey(today, -CLASS_RECENT_DAYS)) {
+            score += 8;
+            const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short" }).format(
+              new Date(`${covered}T12:00:00Z`)
+            );
+            say(20, covered === today ? "covered in class today" : `covered in class ${weekday}`);
+          } else if (focus.newTopic.origin === "AI") {
+            say(12, focus.lastLearned ? `suggested after ${focus.lastLearned}` : "suggested next");
+          } else {
+            say(12, "next in your outline");
+          }
+        }
         resourceNext = focus.nextUnit;
         reviewOn = focus.reviewOn ?? memory?.nextReviewOn ?? null;
         if (focus.nextUnit && resource?.nextShort) say(3, `${resource.nextShort} next`);
@@ -336,6 +369,7 @@ export function rankStudyNext({
         kind,
         topicId: topic?.id ?? null,
         topicName: topic?.name ?? null,
+        topicIsNew,
         taskId: task?.id ?? null,
         taskTitle: task?.title ?? null,
         milestoneName,
@@ -355,6 +389,24 @@ export function rankStudyNext({
 }
 
 /**
+ * Topics never studied, in the order to learn them: ones the class already
+ * covered first, then the outline or list order.
+ */
+export function newTopicsInOrder<T extends TopicLike>(topics: T[], studied: Set<string | null | undefined>, today: string): T[] {
+  return topics
+    .filter((t) => !t.archivedAt && !studied.has(t.id))
+    .sort((a, b) => {
+      const aCovered = a.plannedOn && a.plannedOn <= today ? 0 : 1;
+      const bCovered = b.plannedOn && b.plannedOn <= today ? 0 : 1;
+      return (
+        aCovered - bCovered ||
+        (a.position ?? Infinity) - (b.position ?? Infinity) ||
+        a.name.localeCompare(b.name)
+      );
+    });
+}
+
+/**
  * Inside a class or self-learning subject: a topic due for review comes first
  * (most overdue), then the task with the nearest deadline, then the next unit
  * of the book or course, then the topic coming up soonest, then any open task.
@@ -364,13 +416,18 @@ function pickFocus(input: {
   topics: TopicLike[];
   sessions: SessionLike[];
   tasks: TaskLike[];
-  urgentTask: TaskLike | null;
+  /** A task close enough (or overdue) to take the focus over learning. */
+  focusTask: TaskLike | null;
   examDate: string | null;
   nextUnit: string | null;
   timezone: string;
   today: string;
 }): {
   topic: TopicLike | null;
+  /** Set when the focus is a topic never studied. */
+  newTopic: TopicLike | null;
+  /** Name of the topic studied most recently, for "suggested after …". */
+  lastLearned: string | null;
   task: TaskLike | null;
   nextUnit: string | null;
   topicReason: string | null;
@@ -378,11 +435,27 @@ function pickFocus(input: {
   topicOverdueDays: number | null;
   reviewOn: string | null;
 } {
-  const { subjectId, topics, sessions, tasks, urgentTask, examDate, nextUnit, timezone, today } = input;
-  const none = { topic: null, task: null, nextUnit: null, topicReason: null, topicOverdueDays: null, reviewOn: null };
+  const { subjectId, topics, sessions, tasks, focusTask, examDate, nextUnit, timezone, today } = input;
+  const own = topics.filter((t) => t.subjectId === subjectId && !t.archivedAt);
+  const studied = new Set(sessions.map((s) => s.topicId).filter(Boolean));
+  const lastSession = sessions
+    .filter((s) => s.topicId)
+    .reduce<SessionLike | null>((latest, s) => (!latest || s.startedAt > latest.startedAt ? s : latest), null);
+  const lastLearned = lastSession ? (own.find((t) => t.id === lastSession.topicId)?.name ?? null) : null;
+  const none = {
+    topic: null,
+    newTopic: null,
+    lastLearned,
+    task: null,
+    nextUnit: null,
+    topicReason: null,
+    topicOverdueDays: null,
+    reviewOn: null,
+  };
 
-  const topicStates = topics
-    .filter((t) => t.subjectId === subjectId && !t.archivedAt)
+  const newTopics = newTopicsInOrder(own, studied, today);
+
+  const topicStates = own
     .map((topic) => {
       const memory = replayMemory(
         sessions.filter((s) => s.topicId === topic.id),
@@ -407,7 +480,8 @@ function pickFocus(input: {
     };
   }
 
-  if (urgentTask) return { ...none, task: urgentTask };
+  if (focusTask) return { ...none, task: focusTask };
+  if (newTopics[0]) return { ...none, topic: newTopics[0], newTopic: newTopics[0] };
   if (nextUnit) return { ...none, nextUnit };
 
   const upcoming = [...topicStates].sort((a, b) => a.memory!.nextReviewOn.localeCompare(b.memory!.nextReviewOn))[0];

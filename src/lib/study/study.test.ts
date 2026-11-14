@@ -507,3 +507,109 @@ describe("rankStudyNext v3: finished tasks", () => {
     assert.match(withTask[0].reason, /not studied yet|0m of 4h/);
   });
 });
+
+describe("rankStudyNext v4: learn next", () => {
+  const base = { now, timezone: "UTC" };
+  const daysAgo = (n: number) => new Date(now.getTime() - n * D);
+  const web: SubjectLike = { id: "web", name: "Web Dev", archivedAt: null, kind: "CLASS" };
+  const outline = [
+    { id: "sel", name: "Selectors", subjectId: "web", archivedAt: null, position: 0, origin: "OUTLINE" as const },
+    { id: "box", name: "Box model", subjectId: "web", archivedAt: null, position: 1, origin: "OUTLINE" as const },
+    { id: "flex", name: "Flexbox", subjectId: "web", archivedAt: null, position: 2, origin: "OUTLINE" as const },
+  ];
+
+  it("suggests the next new topic in the outline when nothing is due", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: outline,
+      openTasks: [],
+      sessions: [session({ subjectId: "web", topicId: "sel", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
+    });
+    assert.equal(ranked[0].topicId, "box");
+    assert.equal(ranked[0].topicIsNew, true);
+    assert.match(ranked[0].reason, /next in your outline/);
+  });
+
+  it("reviews a topic that felt hard before moving on", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: outline,
+      openTasks: [],
+      sessions: [session({ subjectId: "web", topicId: "sel", minutes: 40, startedAt: daysAgo(2), rating: "STRUGGLED" })],
+    });
+    assert.equal(ranked[0].topicId, "sel");
+    assert.equal(ranked[0].topicIsNew, false);
+    assert.match(ranked[0].reason, /Selectors due for review/);
+  });
+
+  it("raises a topic the class covered this week", () => {
+    const other: SubjectLike = { id: "db", name: "Databases", archivedAt: null, kind: "CLASS" };
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web, other],
+      topics: [
+        { id: "joins", name: "Joins", subjectId: "db", archivedAt: null, position: 0, origin: "OUTLINE" },
+        { ...outline[0], plannedOn: "2026-11-10" },
+      ],
+      openTasks: [],
+      sessions: [
+        session({ subjectId: "web", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" }),
+        session({ subjectId: "db", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" }),
+      ],
+    });
+    assert.equal(ranked[0].subjectId, "web");
+    assert.equal(ranked[0].topicName, "Selectors");
+    assert.match(ranked[0].reason, /covered in class Tue/);
+  });
+
+  it("keeps learning in focus when a deadline is still days away", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: outline,
+      openTasks: [task({ id: "lab", title: "Lab report", subjectId: "web", deadline: new Date(now.getTime() + 10 * D) })],
+      sessions: [session({ subjectId: "web", topicId: "sel", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
+    });
+    assert.equal(ranked[0].topicId, "box");
+    assert.equal(ranked[0].taskId, null);
+  });
+
+  it("puts a task due tomorrow in focus", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: outline,
+      openTasks: [task({ id: "lab", title: "Lab report", subjectId: "web", deadline: new Date(now.getTime() + 20 * H) })],
+      sessions: [session({ subjectId: "web", topicId: "sel", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
+    });
+    assert.equal(ranked[0].taskId, "lab");
+  });
+
+  it("says an AI topic was suggested after the last one learned", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: [
+        { id: "flex", name: "Flexbox", subjectId: "web", archivedAt: null, position: 0, origin: "OUTLINE" },
+        { id: "grid", name: "CSS Grid", subjectId: "web", archivedAt: null, position: 1, origin: "AI" },
+      ],
+      openTasks: [],
+      sessions: [session({ subjectId: "web", topicId: "flex", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
+    });
+    assert.equal(ranked[0].topicName, "CSS Grid");
+    assert.match(ranked[0].reason, /suggested after Flexbox/);
+  });
+
+  it("skips archived suggestions", () => {
+    const ranked = rankStudyNext({
+      ...base,
+      subjects: [web],
+      topics: [{ ...outline[1], archivedAt: new Date() }],
+      openTasks: [],
+      sessions: [session({ subjectId: "web", minutes: 40, startedAt: daysAgo(1), rating: "GOT_IT" })],
+    });
+    assert.equal(ranked[0].topicId, null);
+  });
+});

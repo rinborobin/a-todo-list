@@ -1072,6 +1072,7 @@ export async function askAiStudyNextAction(): Promise<ActionResult<AiStudyNextRe
           kind: subjectRow.kind,
           topicId: topicRow?.id ?? null,
           topicName: topicRow?.name ?? null,
+          topicIsNew: topicRow ? !context.sessions.some((x) => x.topicId === topicRow.id) : false,
           taskId: taskRow?.id ?? null,
           taskTitle: taskRow?.title ?? null,
           milestoneName: taskRow?.milestoneId

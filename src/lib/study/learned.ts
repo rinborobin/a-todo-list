@@ -2,7 +2,7 @@ import type { StudyRating } from "@/db/schema";
 import { toLocalDateKey } from "@/lib/scheduling/timezone";
 import { estimateRatio, typicalMinutes, usualHours } from "./habits";
 import { replayMemory, reviewStatus } from "./memory";
-import { lastTouched, type FinishedTaskLike, type SubjectLike, type TopicLike } from "./next";
+import { lastTouched, newTopicsInOrder, type FinishedTaskLike, type SubjectLike, type TopicLike } from "./next";
 import type { SessionLike } from "./stats";
 import { describeStreak, practiceStreak } from "./streak";
 
@@ -27,6 +27,8 @@ export interface Learned {
   projects: { subjectName: string; idleDays: number | null }[];
   /** Self-learning with a days-a-week target: "5-day streak", "2 of 3 days this week". */
   practice: { subjectName: string; line: string }[];
+  /** The next topic to learn per class or self-learning subject. */
+  nextTopics: { subjectName: string; topicName: string }[];
 }
 
 const QUEUE_HORIZON_DAYS = 7;
@@ -127,6 +129,18 @@ export function buildLearned(input: {
         return { subjectName: subject.name, idleDays };
       })
       .sort((a, b) => (b.idleDays ?? Infinity) - (a.idleDays ?? Infinity) || a.subjectName.localeCompare(b.subjectName)),
+    nextTopics: active
+      .filter((subject) => subject.kind !== "PROJECT")
+      .map((subject) => {
+        const studied = new Set(sessions.filter((s) => s.subjectId === subject.id).map((s) => s.topicId));
+        const next = newTopicsInOrder(
+          topics.filter((t) => t.subjectId === subject.id),
+          studied,
+          today
+        )[0];
+        return next ? { subjectName: subject.name, topicName: next.name } : null;
+      })
+      .filter((row): row is { subjectName: string; topicName: string } => row !== null),
     practice: active
       .filter((subject) => subject.kind === "SELF_LEARNING" && subject.practiceDaysPerWeek)
       .map((subject) => ({

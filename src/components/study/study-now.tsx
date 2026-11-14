@@ -10,6 +10,7 @@ import { describeDue, formatDuration } from "@/lib/format";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { RatingPicker } from "./rating-picker";
 import { StudyPicker } from "./study-picker";
+import { useChangedSince } from "@/components/ui/motion";
 import type { PickerSubject } from "@/lib/study/picker";
 import { useMinuteClock } from "./use-minute-clock";
 
@@ -64,6 +65,8 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
   const [isPlanning, startPlanning] = useTransition();
   // "Choose what to study": the student picks by mood instead of the suggestion.
   const [picking, setPicking] = useState(false);
+  const suggestionKey = suggestion ? `${suggestion.subjectId}:${suggestion.topicId ?? suggestion.taskId ?? ""}` : "";
+  const suggestionChanged = useChangedSince(suggestionKey);
 
   const addToPlan = (s: StudyNextSuggestion) => {
     setError(null);
@@ -207,10 +210,10 @@ export function StudyNow({ suggestion, running, subjects, initialNow, timezone }
       )}
       <p className={label}>Next up</p>
       {suggestion ? (
-        <>
+        <div key={suggestionKey} className={suggestionChanged ? "enter" : ""}>
           <SuggestionLine suggestion={suggestion} />
           {suggestion.reason && <p className="text-[13px] text-muted">{suggestion.reason}</p>}
-        </>
+        </div>
       ) : (
         <p className="mt-1 text-sm text-muted">Pick something to start a timer.</p>
       )}

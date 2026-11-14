@@ -42,7 +42,7 @@ const PRACTICE_DAYS: { value: number | null; label: string }[] = [
 const UNITS = ["lesson", "chapter", "unit", "module", "video", "page"];
 
 const segment = (active: boolean) =>
-  `h-10 flex-1 rounded-lg text-sm transition-colors ${
+  `press h-10 flex-1 rounded-lg text-sm transition-colors ${
     active ? "bg-sheet font-medium text-ink shadow-[0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-ink"
   }`;
 

@@ -115,6 +115,8 @@ export function DayRail({ items, timezone, now, live = false, onStatusChange, to
                 >
                   <span
                     className={`flex h-[18px] w-[18px] items-center justify-center rounded-full border-[1.5px] transition-colors ${
+                      isDone && overrides[item.id] === "COMPLETED" ? "tick" : ""
+                    } ${
                       isDone
                         ? "border-ink bg-ink text-paper"
                         : isNext

@@ -85,7 +85,7 @@ export function ProgressView(props: ProgressViewProps) {
           </h1>
         </div>
         {props.activeSubjects.length > 0 && (
-          <Button variant="primary" onClick={() => setLogOpen(true)} className="mb-1">
+          <Button variant="primary" onClick={() => setLogOpen(true)} className="mb-1 shrink-0 whitespace-nowrap">
             <PlusIcon className="h-4 w-4" />
             Log study
           </Button>

@@ -31,7 +31,7 @@ export function SubjectMeters({ rows }: { rows: SubjectMeterRow[] }) {
 
   return (
     <ul className="divide-y divide-line border-y border-line">
-      {rows.map((row) => (
+      {rows.map((row, index) => (
         <li
           key={row.key}
           className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 py-3 sm:grid-cols-[12rem_minmax(0,1fr)_4.5rem] sm:items-center"
@@ -54,7 +54,10 @@ export function SubjectMeters({ rows }: { rows: SubjectMeterRow[] }) {
           </p>
           <div className="col-span-2 h-2 rounded-full bg-line sm:col-span-1" aria-hidden="true">
             {row.minutes7d > 0 && (
-              <div className="h-full rounded-full bg-ink" style={{ width: `${Math.max(2, (row.minutes7d / max) * 100)}%` }} />
+              <div
+                className="grow-x h-full rounded-full bg-ink"
+                style={{ width: `${Math.max(2, (row.minutes7d / max) * 100)}%`, "--i": index } as React.CSSProperties}
+              />
             )}
           </div>
         </li>

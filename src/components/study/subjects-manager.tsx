@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/field";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
 import { KindPicker, SubjectSetupFields, describeSetup } from "./subject-setup-fields";
 import { toSetupSubject } from "./setup-subject";
+import { useAddedSince } from "@/components/ui/motion";
 import { TopicOutline, type OutlineTopicRow } from "./topic-outline";
 
 const sectionTitle = "text-xs font-semibold uppercase tracking-[0.08em] text-muted";
@@ -43,6 +44,7 @@ export function SubjectsManager({
   const [isPending, startTransition] = useTransition();
 
   const active = subjects.filter((s) => !s.archivedAt);
+  const isAdded = useAddedSince(subjects);
   const archived = subjects.filter((s) => s.archivedAt);
 
   const replace = (updated: Subject) =>
@@ -128,7 +130,7 @@ export function SubjectsManager({
                 </form>
               </li>
             ) : (
-              <li key={s.id} className="py-1.5">
+              <li key={s.id} className={`py-1.5 ${isAdded(s.id) ? "enter" : ""}`}>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"

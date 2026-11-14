@@ -22,7 +22,7 @@ const DURATIONS = [30, 60, 90, 120];
 const RATINGS: StudyRating[] = ["STRUGGLED", "OK", "GOT_IT"];
 
 const chip = (active: boolean) =>
-  `h-9 flex-1 rounded-lg text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-paper text-ink-soft hover:bg-line"}`;
+  `press h-9 flex-1 rounded-lg text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-paper text-ink-soft hover:bg-line"}`;
 
 export function LogStudyDialog({ open, onClose, subjects, topics, today }: LogStudyDialogProps) {
   const yesterday = addDaysToDateKey(today, -1);

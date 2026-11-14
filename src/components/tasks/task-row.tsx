@@ -4,11 +4,14 @@ import Link from "next/link";
 import type { Task } from "@/db/schema";
 import { describeDue, formatDuration } from "@/lib/format";
 import { CheckIcon, PencilIcon, TrashIcon } from "@/components/ui/icons";
+import { useChangedSince } from "@/components/ui/motion";
 
 interface TaskRowProps {
   task: Task;
   subjectName?: string;
   milestoneName?: string;
+  /** Just added: eases in. */
+  entering?: boolean;
   now: Date;
   timezone: string;
   busy?: boolean;
@@ -17,8 +20,20 @@ interface TaskRowProps {
   onDelete: (task: Task) => void;
 }
 
-export function TaskRow({ task, subjectName, milestoneName, now, timezone, busy, onToggle, onEdit, onDelete }: TaskRowProps) {
+export function TaskRow({
+  task,
+  subjectName,
+  milestoneName,
+  entering = false,
+  now,
+  timezone,
+  busy,
+  onToggle,
+  onEdit,
+  onDelete,
+}: TaskRowProps) {
   const isDone = task.status === "COMPLETED";
+  const justTicked = useChangedSince(isDone) && isDone;
   const isCancelled = task.status === "CANCELLED";
   const due = task.deadline && !isDone && !isCancelled ? describeDue(task.deadline, now, timezone) : null;
 
@@ -50,7 +65,7 @@ export function TaskRow({ task, subjectName, milestoneName, now, timezone, busy,
   if (isCancelled) meta.push(<span key="st">Cancelled</span>);
 
   return (
-    <li className="group flex items-start gap-1">
+    <li className={`group flex items-start gap-1 ${entering ? "enter" : ""}`}>
       <button
         type="button"
         onClick={() => onToggle(task)}
@@ -62,7 +77,7 @@ export function TaskRow({ task, subjectName, milestoneName, now, timezone, busy,
         <span
           className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] transition-colors ${
             isDone ? "border-ink bg-ink text-paper" : "border-faint hover:border-ink"
-          }`}
+          } ${justTicked ? "tick" : ""}`}
         >
           {isDone && <CheckIcon className="h-3 w-3" />}
         </span>

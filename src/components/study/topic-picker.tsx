@@ -12,7 +12,7 @@ export interface TopicOption {
 const MAX_CHIPS = 6;
 
 const chip = (active: boolean) =>
-  `h-9 rounded-lg px-3 text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-line/60 text-ink-soft hover:bg-line"}`;
+  `press h-9 rounded-lg px-3 text-[13px] transition-colors ${active ? "bg-ink text-paper" : "bg-line/60 text-ink-soft hover:bg-line"}`;
 
 interface TopicChipsProps {
   topics: TopicOption[];

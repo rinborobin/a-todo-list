@@ -24,7 +24,7 @@ export function DailyStrip({ days, today }: DailyStripProps) {
     <figure>
       <figcaption className="sr-only">Minutes studied per day, last 7 days</figcaption>
       <ol className="flex h-24 items-end gap-0.5 border-b border-line-strong">
-        {days.map((day) => {
+        {days.map((day, index) => {
           const { full } = dayParts(day.date);
           const label = `${full}: ${day.minutes > 0 ? formatDuration(day.minutes) : "nothing"}`;
           return (
@@ -37,10 +37,15 @@ export function DailyStrip({ days, today }: DailyStripProps) {
               {/* Hit area is the whole column; the mark itself stays thin. */}
               <span
                 aria-hidden="true"
-                className={`w-full max-w-7 rounded-t-[4px] transition-opacity ${
+                className={`grow-y w-full max-w-7 rounded-t-[4px] transition-opacity ${
                   day.minutes > 0 ? "bg-ink group-hover:opacity-80" : "bg-line-strong"
                 }`}
-                style={{ height: day.minutes > 0 ? `${Math.max(4, (day.minutes / max) * 100)}%` : "2px" }}
+                style={
+                  {
+                    height: day.minutes > 0 ? `${Math.max(4, (day.minutes / max) * 100)}%` : "2px",
+                    "--i": index,
+                  } as React.CSSProperties
+                }
               />
               <span
                 role="tooltip"

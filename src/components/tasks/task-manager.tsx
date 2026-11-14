@@ -10,6 +10,7 @@ import { PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { TaskRow } from "./task-row";
 import { TaskFormDialog } from "./task-form-dialog";
 import type { TaskSubjectOption } from "./subject-options";
+import { useAddedSince } from "@/components/ui/motion";
 import { DeleteTaskDialog } from "./delete-task-dialog";
 
 interface TaskManagerProps {
@@ -42,6 +43,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
     [subjects]
   );
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const isAdded = useAddedSince(tasks);
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("open");
@@ -237,6 +239,7 @@ export function TaskManager({ initialTasks, timezone, now, subjects }: TaskManag
                     task={task}
                     subjectName={task.subjectId ? subjectName.get(task.subjectId) : undefined}
                     milestoneName={task.milestoneId ? milestoneName.get(task.milestoneId) : undefined}
+                    entering={isAdded(task.id)}
                     now={now}
                     timezone={timezone}
                     busy={updatingTaskId === task.id}

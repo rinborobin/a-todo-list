@@ -17,6 +17,7 @@
   --accent-soft: #fdf1ec;
   --danger: #b91c1c;
   --danger-soft: #fdf0ee;
+  --focus-ring: rgb(28 25 23 / 0.12);
   color-scheme: light;
 }
 
@@ -34,6 +35,7 @@
     --accent-soft: #2e2019;
     --danger: #f19a8f;
     --danger-soft: #2c1816;
+    --focus-ring: rgb(237 232 222 / 0.16);
     color-scheme: dark;
   }
 }
@@ -72,6 +74,17 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * Text fields already darken their border on focus. A second outline 2px
+ * outside it drew a thick double line, so fields get a soft ring instead.
+ */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
 dialog::backdrop {
   background: rgb(28 25 23 / 0.35);
 }
@@ -90,6 +103,78 @@ dialog::backdrop {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------- motion
+ * Motion answers what the person just did: a sheet opening or closing, a press,
+ * something ticked off or added. The one moment that plays on its own is the
+ * Progress bars growing in. Everything is off with reduced motion.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Buttons and chips give a little under the finger. */
+  .press {
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+    transition-duration: 150ms;
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Sheets rise from the bottom on phones and settle in the middle on larger screens. */
+  dialog.sheet[open] {
+    animation: sheet-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  dialog.sheet[open]::backdrop {
+    animation: backdrop-in 0.25s ease-out;
+  }
+  dialog.sheet[data-closing] {
+    animation: sheet-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  dialog.sheet[data-closing]::backdrop {
+    animation: backdrop-out 0.2s ease-in forwards;
+  }
+  @media (min-width: 640px) {
+    dialog.sheet[open] {
+      animation-name: dialog-in;
+    }
+    dialog.sheet[data-closing] {
+      animation-name: dialog-out;
+    }
+  }
+
+  /* Something just added to a list. */
+  .enter {
+    animation: enter 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* A tick that was just made. */
+  .tick {
+    animation: tick 0.36s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  }
+
+  /* Progress: bars grow from their baseline, one after another. */
+  .grow-x {
+    transform-origin: left center;
+    animation: grow-x 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+  }
+  .grow-y {
+    transform-origin: center bottom;
+    animation: grow-y 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+}
+
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-out { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(0.98); } }
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes tick { 0% { transform: scale(0.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 
 /* ---------------------------------------------------------------- focus screen */
 

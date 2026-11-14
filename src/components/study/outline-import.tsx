@@ -127,7 +127,7 @@ export function OutlineImport({
             before saving.
           </p>
 
-          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong text-[15px] hover:border-ink">
+          <label className="press flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong text-[15px] hover:border-ink focus-within:border-ink focus-within:shadow-[0_0_0_3px_var(--focus-ring)]">
             <DocumentTextIcon className="h-4 w-4" />
             {file ? <span className="max-w-[14rem] truncate">{file.name}</span> : "Photo or PDF"}
             <input

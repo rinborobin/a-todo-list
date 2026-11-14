@@ -19,7 +19,7 @@ export interface PickedStudy {
 }
 
 const chip = (active: boolean) =>
-  `max-w-full truncate rounded-lg px-3 py-2 text-[14px] transition-colors ${
+  `press max-w-full truncate rounded-lg px-3 py-2 text-[14px] transition-colors ${
     active ? "bg-ink text-paper" : "bg-line/60 text-ink-soft hover:bg-line hover:text-ink"
   }`;
 

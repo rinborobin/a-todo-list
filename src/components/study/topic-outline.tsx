@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { CheckIcon, PlusIcon } from "@/components/ui/icons";
 import { OutlineImport } from "./outline-import";
+import { useAddedSince } from "@/components/ui/motion";
 
 export interface OutlineTopicRow {
   id: string;
@@ -63,6 +64,7 @@ export function TopicOutline({
   const [isPending, startTransition] = useTransition();
 
   const nextId = topics.find((t) => !progress[t.id])?.id ?? null;
+  const isAdded = useAddedSince(topics);
 
   const run = (fn: () => Promise<void>) => {
     setError(null);
@@ -151,7 +153,7 @@ export function TopicOutline({
               !studied && t.origin === "AI" ? "suggested" : null,
             ].filter(Boolean);
             return (
-              <li key={t.id}>
+              <li key={t.id} className={isAdded(t.id) ? "enter" : ""}>
                 <button
                   type="button"
                   onClick={() => setEditing({ id: t.id, name: t.name })}

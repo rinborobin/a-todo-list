@@ -14,6 +14,7 @@ import { KindPicker, SubjectSetupFields, type SetupSubject } from "./subject-set
 import type { EditableMilestone } from "./milestones-editor";
 import { toSetupSubject } from "./setup-subject";
 import { OutlineImport } from "./outline-import";
+import { useAddedSince } from "@/components/ui/motion";
 
 interface SetupFlowProps {
   initialSubjects: SetupSubject[];
@@ -41,6 +42,7 @@ export function SetupFlow({ initialSubjects, milestones, hasAvailability, today 
   const [subjects, setSubjects] = useState(initialSubjects);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SubjectKind>("CLASS");
+  const isAdded = useAddedSince(subjects);
   // Subject whose course outline is being imported, and which ones are done.
   const [importFor, setImportFor] = useState<SetupSubject | null>(null);
   const [imported, setImported] = useState<Record<string, number>>({});
@@ -127,7 +129,7 @@ export function SetupFlow({ initialSubjects, milestones, hasAvailability, today 
           {subjects.length > 0 && (
             <ul className="mt-5 divide-y divide-line border-y border-line">
               {subjects.map((s) => (
-                <li key={s.id} className="py-2.5">
+                <li key={s.id} className={`py-2.5 ${isAdded(s.id) ? "enter" : ""}`}>
                   <div className="flex items-center justify-between">
                     <span className="text-[15px] font-medium">{s.name}</span>
                     <button

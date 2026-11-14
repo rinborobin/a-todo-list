@@ -5,6 +5,7 @@ import { createMilestoneAction, deleteMilestoneAction, updateMilestoneAction } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { CheckIcon, ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { useAddedSince } from "@/components/ui/motion";
 
 export interface EditableMilestone {
   id: string;
@@ -47,6 +48,9 @@ export function MilestonesEditor({
   const [isPending, startTransition] = useTransition();
 
   const currentId = milestones.find((m) => !m.completedAt)?.id ?? null;
+  const isAdded = useAddedSince(milestones);
+  // Milestones ticked in this visit, so only those animate.
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set());
 
   const run = (fn: () => Promise<void>) => {
     setError(null);
@@ -70,6 +74,7 @@ export function MilestonesEditor({
       const result = await updateMilestoneAction({ id, ...changes });
       if (!result.success) return setError(result.error);
       setMilestones((prev) => prev.map((m) => (m.id === id ? result.data : m)));
+      if (changes.done) setTicked((prev) => new Set(prev).add(id));
       setEditing(null);
     });
 
@@ -156,7 +161,7 @@ export function MilestonesEditor({
               );
             }
             return (
-              <li key={m.id} className="flex items-center gap-1 py-1">
+              <li key={m.id} className={`flex items-center gap-1 py-1 ${isAdded(m.id) ? "enter" : ""}`}>
                 <button
                   type="button"
                   onClick={() => update(m.id, { done: !done })}
@@ -167,7 +172,7 @@ export function MilestonesEditor({
                   <span
                     className={`grid h-5 w-5 place-items-center rounded-full border ${
                       done ? "border-ink bg-ink text-paper" : "border-line-strong"
-                    }`}
+                    } ${done && ticked.has(m.id) ? "tick" : ""}`}
                   >
                     {done && <CheckIcon className="h-3 w-3" />}
                   </span>

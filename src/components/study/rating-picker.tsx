@@ -52,7 +52,7 @@ export function RatingPicker({ sessionId, value = null, prompt = false, onDone, 
             aria-pressed={rating === option}
             disabled={isPending}
             onClick={() => choose(option)}
-            className={`h-8 rounded-lg px-2.5 transition-colors ${
+            className={`press h-8 rounded-lg px-2.5 transition-colors ${
               rating === option ? "bg-ink text-paper" : "bg-line/60 text-ink-soft hover:bg-line"
             }`}
           >

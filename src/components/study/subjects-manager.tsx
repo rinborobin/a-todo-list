@@ -157,20 +157,12 @@ export function SubjectsManager({
                     />
                     {s.kind !== "PROJECT" && (
                       <div className="mt-5">
-                        {(() => {
-                          const own = topics.filter((t) => t.subjectId === s.id);
-                          // Remount when the server list changes (import, add, rename).
-                          const signature = own.map((t) => `${t.id}:${t.name}:${t.position}:${t.plannedOn}`).join("|");
-                          return (
-                            <TopicOutline
-                              key={signature}
-                              subjectId={s.id}
-                              subjectName={s.name}
-                              topics={own}
-                              progress={topicProgress}
-                            />
-                          );
-                        })()}
+                        <TopicOutline
+                          subjectId={s.id}
+                          subjectName={s.name}
+                          topics={topics.filter((t) => t.subjectId === s.id)}
+                          progress={topicProgress}
+                        />
                       </div>
                     )}
                     <div className="mt-4 flex gap-1 border-t border-line pt-3">

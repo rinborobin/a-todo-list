@@ -48,6 +48,13 @@ export function TopicOutline({
   progress: Record<string, { rating: StudyRating | null }>;
 }) {
   const [topics, setTopics] = useState(() => [...initial].sort(order));
+  // Take the server list when it changes (import, add, rename revalidate the page).
+  const signature = initial.map((t) => `${t.id}:${t.name}:${t.position}:${t.plannedOn}`).join("|");
+  const [seen, setSeen] = useState(signature);
+  if (signature !== seen) {
+    setSeen(signature);
+    setTopics([...initial].sort(order));
+  }
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [newName, setNewName] = useState("");
   const [importing, setImporting] = useState(false);
@@ -204,7 +211,7 @@ export function TopicOutline({
           subjectName={subjectName}
           open={importing}
           onClose={() => setImporting(false)}
-          // Saving revalidates the page, which remounts this list with the new order.
+          // Saving revalidates the page; the new order arrives through the props.
           onSaved={(count) => setNotice(`Saved ${count} topics.`)}
         />
       )}
